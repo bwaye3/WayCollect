@@ -1,6 +1,6 @@
 {
   "name": "watch-register",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "private": true,
   "description": "Local-first, air-gapped asset & provenance register",
   "scripts": {
