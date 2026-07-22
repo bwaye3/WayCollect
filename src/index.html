@@ -1,0 +1,927 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Register — Watch Collection</title>
+<!--
+  WATCH REGISTER — local-first, air-gapped register for a physical collection.
+  ─────────────────────────────────────────────────────────────────────────
+  • No network. No servers. No telemetry. Nothing is ever transmitted.
+  • Two ways to hold data:
+      LOCAL   — persists in this browser's IndexedDB (convenient; plaintext in the browser store)
+      VAULT-ONLY — nothing written to the browser; data lives in memory; you open/save an
+                   encrypted .vault file. Closing the tab leaves no trace. This is the USB mode.
+  • Encryption = the browser's built-in WebCrypto. AES-256-GCM vault, key wrapped by a
+    passphrase (PBKDF2, 250k rounds). No third-party crypto libraries. No backdoor, no reset.
+  • The design is ENVELOPE encryption: a random master key encrypts the vault; the passphrase
+    only wraps that master key. That master key is the single secret you could later split with
+    Shamir's Secret Sharing (K-of-N) for inheritance — without ever re-encrypting the data.
+
+  RUNNING IT
+  • Double-click to open over file://  (Chrome/Firefox treat local files as a secure context,
+    so WebCrypto + IndexedDB both work), OR serve from localhost for maximum compatibility:
+        python3 -m http.server 8080   →   http://localhost:8080/
+    Either way it stays fully offline.
+
+  SUCCESSION — read the "Succession & recovery" panel. There is deliberately no password reset.
+  Heir access is a custody act (sealed passphrase with your executor / safe-deposit box, named
+  in your will), not an email link. See the panel for the correct, non-backdoor approach.
+-->
+<style>
+  :root{
+    --ink:#0E0F12; --surface:#16181D; --surface-2:#1E2128; --surface-3:#23262E;
+    --line:#2A2E37; --line-2:#363B45;
+    --text:#E7E4DC; --muted:#8B8F99; --muted-2:#616671;
+    --brass:#C6A15B; --brass-dim:#8A7038; --brass-wash:rgba(198,161,91,.10);
+    --alert:#C6603B; --alert-wash:rgba(198,96,59,.12); --ok:#7C9A78;
+    --mono:ui-monospace,"SF Mono","Cascadia Code","JetBrains Mono","Roboto Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --r:3px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--ink);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  ::selection{background:var(--brass);color:#14110a}
+  button{font-family:inherit;color:inherit}
+  input,select,textarea{font-family:inherit}
+  a{color:var(--brass);text-decoration:none;cursor:pointer}
+  a:hover{text-decoration:underline}
+  .num{font-family:var(--mono);font-variant-numeric:tabular-nums;font-feature-settings:"zero" 1}
+  .eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+  :focus-visible{outline:2px solid var(--brass);outline-offset:2px;border-radius:2px}
+
+  .app{display:flex;flex-direction:column;min-height:100%}
+
+  header.top{position:sticky;top:0;z-index:40;background:rgba(14,15,18,.88);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  .top-row{display:flex;align-items:stretch}
+  .brand{display:flex;flex-direction:column;justify-content:center;padding:11px 20px;border-right:1px solid var(--line);min-width:210px}
+  .brand .mark{font-family:var(--mono);font-weight:600;letter-spacing:.28em;font-size:14px;text-transform:uppercase}
+  .brand .mark b{color:var(--brass);font-weight:600}
+  .brand .sub{font-size:10px;letter-spacing:.04em;color:var(--muted-2);margin-top:3px}
+
+  .readout{display:flex;flex:1;align-items:stretch;overflow-x:auto}
+  .stat{display:flex;flex-direction:column;justify-content:center;gap:2px;padding:10px 20px;border-right:1px solid var(--line);white-space:nowrap}
+  .stat .k{font-family:var(--mono);font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted-2)}
+  .stat .v{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:19px;line-height:1;color:var(--text)}
+  .stat .v small{font-size:10px;color:var(--muted);margin-left:3px}
+  .stat.pl-pos .v{color:var(--ok)} .stat.pl-neg .v{color:var(--alert)}
+  .stat.flag.warn{background:var(--alert-wash)} .stat.flag.warn .v{color:var(--alert)} .stat.flag.warn .k{color:var(--alert)}
+  .stat.flag.ok .v{color:var(--ok)}
+
+  .top-actions{display:flex;align-items:center;gap:8px;padding:0 14px;border-left:1px solid var(--line)}
+
+  .btn{display:inline-flex;align-items:center;gap:7px;cursor:pointer;background:var(--surface-2);border:1px solid var(--line-2);color:var(--text);padding:7px 13px;border-radius:var(--r);font-size:12.5px;line-height:1;transition:border-color .12s,background .12s,color .12s;white-space:nowrap}
+  .btn:hover{border-color:var(--brass-dim);background:var(--surface-3)}
+  .btn:active{transform:translateY(.5px)}
+  .btn.primary{background:var(--brass);border-color:var(--brass);color:#14110a;font-weight:600}
+  .btn.primary:hover{background:#d4b26f;border-color:#d4b26f}
+  .btn.ghost{background:transparent;border-color:transparent;color:var(--muted)}
+  .btn.ghost:hover{color:var(--text);background:var(--surface-2);border-color:var(--line)}
+  .btn.sm{padding:5px 9px;font-size:11.5px}
+  .btn.danger:hover{border-color:var(--alert);color:var(--alert)}
+  .btn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.6}
+
+  /* mode + banner */
+  .subbar{display:flex;align-items:center;gap:14px;padding:8px 20px;border-bottom:1px solid var(--line);background:var(--ink);flex-wrap:wrap}
+  .seg{display:inline-flex;border:1px solid var(--line-2);border-radius:var(--r);overflow:hidden}
+  .seg button{background:transparent;border:none;padding:6px 12px;font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);cursor:pointer}
+  .seg button.on{background:var(--brass);color:#14110a;font-weight:600}
+  .subbar .mode-desc{font-size:11px;color:var(--muted-2);font-family:var(--mono)}
+  .subbar .lock{margin-left:auto;font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;color:var(--muted-2);display:inline-flex;gap:7px;align-items:center}
+  .subbar .lock .dot{width:6px;height:6px;border-radius:50%;background:var(--muted-2)}
+  .subbar .lock.dirty .dot{background:var(--alert)} .subbar .lock.dirty{color:var(--alert)}
+
+  .banner{display:flex;gap:12px;align-items:flex-start;padding:12px 20px;background:var(--alert-wash);border-bottom:1px solid var(--line)}
+  .banner svg{width:16px;height:16px;stroke:var(--alert);fill:none;stroke-width:1.7;flex:none;margin-top:1px}
+  .banner .txt{font-size:12.5px;color:var(--text);line-height:1.5}
+  .banner .txt b{color:var(--alert)}
+  .banner .acts{margin-left:auto;display:flex;gap:8px;flex:none}
+  .banner .x{background:none;border:none;color:var(--muted);cursor:pointer;padding:2px;line-height:0}
+  .banner .x:hover{color:var(--text)}
+
+  .toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 20px;border-bottom:1px solid var(--line)}
+  .search{position:relative;flex:1;min-width:200px;max-width:380px}
+  .search input{width:100%;background:var(--surface);border:1px solid var(--line);color:var(--text);border-radius:var(--r);padding:8px 12px 8px 34px;font-size:13px}
+  .search input:focus{border-color:var(--brass-dim);outline:none}
+  .search svg{position:absolute;left:11px;top:9px;width:15px;height:15px;stroke:var(--muted-2);fill:none;stroke-width:1.6}
+  .filters{display:flex;gap:8px;flex-wrap:wrap}
+  .sel{background:var(--surface);border:1px solid var(--line);color:var(--text);border-radius:var(--r);padding:7px 10px;font-size:12px;font-family:var(--mono);letter-spacing:.02em}
+  .sel:focus{border-color:var(--brass-dim);outline:none}
+  .count-note{margin-left:auto;color:var(--muted-2);font-size:11.5px}
+
+  .table-wrap{overflow-x:auto}
+  table.reg{width:100%;border-collapse:collapse;font-size:13px}
+  table.reg thead th{position:sticky;top:0;background:var(--surface-2);z-index:5;text-align:left;font-family:var(--mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:500;padding:10px 14px;border-bottom:1px solid var(--line-2);white-space:nowrap;cursor:pointer;user-select:none}
+  table.reg thead th.no-sort{cursor:default}
+  table.reg thead th .arw{color:var(--brass);margin-left:5px;font-size:9px}
+  table.reg thead th.r,table.reg td.r{text-align:right}
+  table.reg tbody td{padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
+  table.reg tbody tr{cursor:pointer;transition:background .1s}
+  table.reg tbody tr:hover{background:var(--surface)}
+  table.reg tbody tr.sel{background:var(--brass-wash)}
+  table.reg tbody tr.sold{opacity:.5}
+  .cell-obj{display:flex;flex-direction:column;gap:2px;min-width:170px}
+  .cell-obj .m{color:var(--text);font-weight:500}
+  .cell-obj .s{color:var(--muted-2);font-size:11px;font-family:var(--mono);letter-spacing:.02em}
+  .ref,.serial{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:12px;color:var(--muted)}
+  .money{font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--text)}
+  .money.dim{color:var(--muted-2)}
+  .gap-up{color:var(--alert)}
+  .chip{display:inline-block;font-family:var(--mono);font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;padding:2px 7px;border-radius:999px;border:1px solid var(--line-2);color:var(--muted);white-space:nowrap}
+  .chip.heir{border-color:var(--brass-dim);color:var(--brass)}
+  .chip.sell{border-color:var(--alert);color:var(--alert)}
+  .chip.rot{border-color:var(--line-2);color:var(--muted-2)}
+  .dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:7px;vertical-align:middle}
+  .dot.warn{background:var(--alert)} .dot.ok{background:var(--ok)} .dot.na{background:var(--muted-2)}
+
+  .empty{padding:70px 20px;text-align:center;color:var(--muted)}
+  .empty h2{font-family:var(--mono);font-weight:500;letter-spacing:.03em;color:var(--text);font-size:17px;margin:0 0 8px}
+  .empty p{margin:0 0 20px;color:var(--muted-2)}
+  .empty .row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+
+  .scrim{position:fixed;inset:0;background:rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:opacity .18s;z-index:50}
+  .scrim.on{opacity:1;pointer-events:auto}
+  .drawer{position:fixed;top:0;right:0;height:100%;width:min(560px,94vw);background:var(--surface);border-left:1px solid var(--line-2);z-index:60;transform:translateX(100%);transition:transform .2s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column;box-shadow:-24px 0 60px rgba(0,0,0,.4)}
+  .drawer.on{transform:translateX(0)}
+  .drawer-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:18px 22px;border-bottom:1px solid var(--line)}
+  .drawer-head .t{font-size:18px;font-weight:600;line-height:1.25}
+  .drawer-head .st{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-top:4px}
+  .drawer-body{overflow-y:auto;padding:6px 22px 30px}
+  .x{background:none;border:none;color:var(--muted);cursor:pointer;padding:4px;line-height:0;border-radius:3px}
+  .x:hover{color:var(--text);background:var(--surface-2)}
+  .x svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.6}
+  .photos{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}
+  .photos img{width:96px;height:96px;object-fit:cover;border-radius:2px;border:1px solid var(--line-2)}
+  .spec-sec{margin-top:22px}
+  .spec-sec .lbl{font-family:var(--mono);font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--brass-dim);padding-bottom:8px;border-bottom:1px solid var(--line);margin-bottom:10px}
+  .kv{display:grid;grid-template-columns:132px 1fr;gap:6px 14px;font-size:13px}
+  .kv dt{color:var(--muted-2);font-family:var(--mono);font-size:11px;padding-top:1px}
+  .kv dd{margin:0;color:var(--text)}
+  .kv dd.num{font-variant-numeric:tabular-nums;font-family:var(--mono)}
+  .prose{white-space:pre-wrap;color:var(--text);font-size:13px;line-height:1.6}
+  .cover-line{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11.5px;padding:6px 0}
+  .cover-line.warn{color:var(--alert)} .cover-line.ok{color:var(--ok)}
+  .war-line{font-family:var(--mono);font-size:11.5px;padding:4px 0}
+  .war-line.exp{color:var(--alert)} .war-line.soon{color:var(--brass)} .war-line.act{color:var(--ok)}
+  .drawer-foot{display:flex;gap:8px;padding:14px 22px;border-top:1px solid var(--line);background:var(--surface)}
+
+  .modal-scrim{position:fixed;inset:0;background:rgba(6,7,9,.66);backdrop-filter:blur(3px);z-index:70;display:none;align-items:flex-start;justify-content:center;overflow-y:auto;padding:40px 16px}
+  .modal-scrim.on{display:flex}
+  .modal{background:var(--surface);border:1px solid var(--line-2);border-radius:5px;width:min(860px,100%);box-shadow:0 30px 90px rgba(0,0,0,.55)}
+  .modal.narrow{width:min(500px,100%)}
+  .modal-head{display:flex;align-items:center;justify-content:space-between;padding:18px 24px;border-bottom:1px solid var(--line)}
+  .modal-head h3{margin:0;font-family:var(--mono);font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:14px}
+  .modal-body{padding:22px 24px}
+  .modal-foot{display:flex;justify-content:space-between;gap:10px;padding:16px 24px;border-top:1px solid var(--line);align-items:center}
+
+  .paste-block{background:var(--ink);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;margin-bottom:22px}
+  .paste-block .hd{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+  .paste-block .hd .eyebrow{color:var(--brass)}
+  textarea.paste{width:100%;min-height:70px;resize:vertical;background:var(--surface);border:1px solid var(--line);color:var(--text);border-radius:var(--r);padding:10px 12px;font-family:var(--mono);font-size:12px;line-height:1.5}
+  textarea.paste:focus{border-color:var(--brass-dim);outline:none}
+  .paste-note{font-size:11px;color:var(--muted-2);margin-top:8px}
+
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px 18px}
+  .grid .full{grid-column:1/-1}
+  .grid .two{grid-column:span 2}
+  .field label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+  .field input,.field select,.field textarea{width:100%;background:var(--surface-2);border:1px solid var(--line);color:var(--text);border-radius:var(--r);padding:9px 11px;font-size:13px}
+  .field input.num,.field input[data-num]{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--brass-dim);outline:none}
+  .field textarea{min-height:76px;resize:vertical;line-height:1.55}
+  .field.filled input,.field.filled select,.field.filled textarea{border-color:var(--brass-dim);box-shadow:inset 0 0 0 1px var(--brass-wash)}
+  .field .hint{font-size:10px;color:var(--muted-2);margin-top:5px;font-family:var(--mono)}
+  .sec-label{grid-column:1/-1;font-family:var(--mono);font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--brass-dim);margin-top:8px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+  .adv-toggle-row{margin:6px 0 4px}
+  .adv-toggle-row .btn{width:100%;justify-content:center;border-style:dashed}
+  #advancedWrap{margin-top:2px}
+  .service-log{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+  .svc-row{display:flex;flex-wrap:wrap;gap:3px 16px;align-items:center;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r);padding:9px 12px;font-size:12px}
+  .svc-row .f{display:flex;flex-direction:column;gap:1px;min-width:64px}
+  .svc-row .f .l{font-family:var(--mono);font-size:8.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted-2)}
+  .svc-row .f .v{color:var(--text)}
+  .svc-row .del{margin-left:auto;background:none;border:none;color:var(--muted-2);cursor:pointer;font-size:16px;line-height:1;padding:2px 4px}
+  .svc-row .del:hover{color:var(--alert)}
+  .svc-add{display:grid;grid-template-columns:1fr 1fr;gap:8px;background:var(--ink);border:1px dashed var(--line-2);border-radius:var(--r);padding:12px;margin-bottom:20px}
+  .svc-add .f2{grid-column:1/-1}
+  .svc-add input{width:100%;background:var(--surface-2);border:1px solid var(--line);color:var(--text);border-radius:var(--r);padding:8px 10px;font-size:12px;font-family:inherit}
+  .svc-add input:focus{border-color:var(--brass-dim);outline:none}
+  .svc-add-btn{grid-column:1/-1}
+  .svc-empty{color:var(--muted-2);font-size:12px;font-family:var(--mono);padding:2px 0 10px}
+  .cost-basis-line{font-family:var(--mono);font-size:11px;color:var(--muted-2);margin:-4px 0 18px}
+  @media (max-width:600px){.svc-add{grid-template-columns:1fr}}
+
+  .photo-strip{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .photo-strip .pv{position:relative;width:64px;height:64px}
+  .photo-strip .pv img{width:64px;height:64px;object-fit:cover;border-radius:2px;border:1px solid var(--line-2)}
+  .photo-strip .pv button{position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;background:var(--alert);color:#140805;border:none;cursor:pointer;font-size:11px;line-height:1;display:flex;align-items:center;justify-content:center}
+  .add-photo{width:64px;height:64px;border:1px dashed var(--line-2);border-radius:2px;background:transparent;color:var(--muted);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:10px;font-family:var(--mono)}
+  .add-photo:hover{border-color:var(--brass-dim);color:var(--brass)}
+  .add-photo svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.6}
+
+  .dialog-text{color:var(--muted);font-size:13px;line-height:1.6}
+  .dialog-text b{color:var(--text)}
+  .pw-input{width:100%;background:var(--surface-2);border:1px solid var(--line);color:var(--text);border-radius:var(--r);padding:10px 12px;font-family:var(--mono);font-size:13px;letter-spacing:.05em;margin-top:14px}
+  .pw-input:focus{border-color:var(--brass-dim);outline:none}
+  .pw-note{font-size:11px;color:var(--alert);margin-top:10px;line-height:1.5;font-family:var(--mono)}
+
+  .toast-wrap{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:90;display:flex;flex-direction:column;gap:8px;align-items:center}
+  .toast{background:var(--surface-2);border:1px solid var(--line-2);border-left:3px solid var(--brass);color:var(--text);padding:11px 16px;border-radius:var(--r);font-size:12.5px;box-shadow:0 12px 40px rgba(0,0,0,.5);min-width:220px;animation:tin .2s}
+  .toast.warn{border-left-color:var(--alert)}
+  @keyframes tin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+  footer.foot{margin-top:auto;padding:14px 20px;border-top:1px solid var(--line);display:flex;gap:16px;flex-wrap:wrap;align-items:center;color:var(--muted-2);font-size:11px}
+  footer.foot .airgap{display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);letter-spacing:.03em}
+  footer.foot .airgap .dot{background:var(--ok)}
+  footer.foot a{color:var(--muted)} footer.foot a:hover{color:var(--brass)}
+  footer.foot .sp{margin-left:auto}
+
+  @media (max-width:820px){ .grid{grid-template-columns:1fr} .grid .two{grid-column:auto} .brand{min-width:0} }
+  @media (prefers-reduced-motion:reduce){ *{transition:none!important;animation:none!important} }
+
+  /* print docs */
+  .print-doc{display:none}
+  @media print{
+    body{background:#fff;color:#111}
+    .app,.scrim,.drawer,.modal-scrim,.toast-wrap{display:none!important}
+    .print-doc{display:block;font-family:Georgia,"Times New Roman",serif;color:#111}
+    .print-doc *{color:#111}
+    .pd-head{border-bottom:2px solid #111;padding-bottom:12px;margin-bottom:16px}
+    .pd-head .pd-mark{font-family:Arial,Helvetica,sans-serif;letter-spacing:.26em;text-transform:uppercase;font-size:10px;color:#555}
+    .pd-head h1{font-size:21px;margin:6px 0 4px}
+    .pd-owner{font-family:Arial,Helvetica,sans-serif;font-size:10.5px;color:#333;margin-top:6px;line-height:1.5}
+    .pd-meta{font-family:Arial,Helvetica,sans-serif;font-size:10px;color:#555;display:flex;gap:18px;flex-wrap:wrap;margin-top:8px}
+    .pd-table{width:100%;border-collapse:collapse;font-size:10.5px;margin-top:8px}
+    .pd-table th{text-align:left;font-family:Arial,Helvetica,sans-serif;font-size:8.5px;letter-spacing:.05em;text-transform:uppercase;color:#333;border-bottom:1.5px solid #111;padding:6px 7px}
+    .pd-table td{padding:6px 7px;border-bottom:.5px solid #bbb;vertical-align:top}
+    .pd-table td.r,.pd-table th.r{text-align:right;font-variant-numeric:tabular-nums;font-family:"Courier New",monospace}
+    .pd-table tfoot td{border-top:1.5px solid #111;border-bottom:none;font-weight:bold;padding-top:8px}
+    .pd-note{font-family:Arial,Helvetica,sans-serif;font-size:9px;color:#555;margin-top:12px;line-height:1.5}
+    .pd-flag{color:#a23a1a!important;font-weight:bold}
+    .estate-item{border-bottom:1px solid #ccc;padding:12px 0;page-break-inside:avoid}
+    .estate-item h3{font-size:13px;margin:0 0 3px}
+    .estate-item .ei-sub{font-family:Arial,Helvetica,sans-serif;font-size:9.5px;color:#555;margin-bottom:7px}
+    .estate-item .ei-grid{display:grid;grid-template-columns:135px 1fr;gap:3px 14px;font-size:10.5px}
+    .estate-item .ei-grid dt{font-family:Arial,Helvetica,sans-serif;color:#555;font-size:9.5px}
+    .estate-group-h{font-family:Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#111;border-bottom:2px solid #111;padding:14px 0 6px;margin-top:8px}
+    .pd-foot{margin-top:22px;padding-top:10px;border-top:1px solid #999;font-family:Arial,Helvetica,sans-serif;font-size:8.5px;color:#666}
+    @page{margin:18mm 14mm;size:A4}
+  }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <header class="top">
+    <div class="top-row">
+      <div class="brand"><div class="mark" id="wordmark">RE<b>GISTER</b></div><div class="sub">Watch Collection</div></div>
+      <div class="readout" id="readout"></div>
+      <div class="top-actions">
+        <button class="btn primary" id="btnAdd" title="Add a watch"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span class="hl">Add</span></button>
+        <button class="btn" id="btnOwner" title="Owner & succession"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg><span class="hl">Owner</span></button>
+        <button class="btn" id="btnMenu" title="Vault, backup & print"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span class="hl">Data</span></button>
+      </div>
+    </div>
+  </header>
+
+  <div class="subbar">
+    <span class="eyebrow" style="color:var(--muted-2)">Storage</span>
+    <div class="seg" id="modeSeg">
+      <button data-mode="local" class="on">Local database</button>
+      <button data-mode="vault">Vault-only</button>
+    </div>
+    <span class="mode-desc" id="modeDesc"></span>
+    <span class="lock" id="lockState"><span class="dot"></span><span id="lockText">saved</span></span>
+  </div>
+
+  <div class="banner" id="banner" style="display:none">
+    <svg viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+    <div class="txt"><b>Your collection is loaded in the clear.</b> This starter file holds your data as plaintext for setup. Set a passphrase and export an encrypted vault now — then keep the vault, and for USB use switch to <b>Vault-only</b> so nothing is left on this machine.</div>
+    <div class="acts"><button class="btn sm primary" id="bannerExport">Export encrypted vault</button></div>
+    <button class="x" id="bannerX"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+
+  <div class="toolbar">
+    <div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+      <input id="search" type="search" placeholder="Search maker, model, reference, serial…" autocomplete="off"></div>
+    <div class="filters">
+      <select class="sel" id="fCat"><option value="">All categories</option></select>
+      <select class="sel" id="fRot"><option value="">Any rotation</option></select>
+      <select class="sel" id="fDisp"><option value="">Any disposition</option><option value="Heirloom">Heirloom</option><option value="Tool-tier">Tool-tier</option><option value="__none">Unassigned</option></select>
+      <select class="sel" id="fCover"><option value="">Any coverage</option><option value="under">Underinsured</option><option value="ok">Covered</option><option value="none">Uninsured</option></select>
+      <select class="sel" id="fStatus"><option value="">Held &amp; sold</option><option value="Active">Held only</option><option value="Sold">Sold only</option></select>
+    </div>
+    <span class="count-note" id="countNote"></span>
+  </div>
+
+  <div class="table-wrap" id="tableWrap"></div>
+
+  <footer class="foot">
+    <span class="airgap"><span class="dot"></span>Air-gapped · no network · runs on this machine</span>
+    <a id="lnkHelp">How it works</a>
+    <a id="lnkSucc">Succession &amp; recovery</a>
+    <span class="sp"></span>
+    <span class="num" id="dbNote"></span>
+  </footer>
+</div>
+
+<!-- drawer -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <div class="drawer-head"><div><div class="t" id="dTitle">—</div><div class="st" id="dSub"></div></div>
+    <button class="x" id="dClose"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="drawer-body" id="dBody"></div>
+  <div class="drawer-foot">
+    <button class="btn sm" id="dEdit"><svg viewBox="0 0 24 24"><path d="M4 20h4l10-10-4-4L4 16z"/></svg> Edit</button>
+    <button class="btn sm danger" id="dDelete"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg> Remove</button>
+  </div>
+</aside>
+
+<!-- form -->
+<div class="modal-scrim" id="formScrim"><div class="modal">
+  <div class="modal-head"><h3 id="formTitle">Add watch</h3><button class="x" id="formClose"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="modal-body">
+    <div class="paste-block"><div class="hd"><span class="eyebrow">Paste a listing — auto-fill</span><button class="btn ghost sm" id="parseBtn">Parse ↴</button></div>
+      <textarea class="paste" id="pasteBox" placeholder="e.g.  1955 Omega Automatic Bumper, cal. 344, 34mm, papers only, worn — $1,250"></textarea>
+      <div class="paste-note">Fills empty fields only, highlights what it found. Nothing saves until you press Save. Text never leaves this machine.</div></div>
+    <div class="grid" id="formGrid"></div>
+
+    <div class="adv-toggle-row"><button class="btn ghost sm" id="advToggle" type="button">+ Full detail — movement, aesthetics, provenance, financial, storage, insurance</button></div>
+    <div id="advancedWrap" style="display:none">
+      <div class="grid" id="formGridAdv"></div>
+      <div class="sec-label" style="margin-top:2px">Service history</div>
+      <div class="service-log" id="serviceLogList"></div>
+      <div class="svc-add">
+        <input id="svcDate" type="date" title="Date">
+        <input id="svcBy" type="text" placeholder="Serviced by" title="Servicer">
+        <input id="svcCost" data-num inputmode="decimal" placeholder="Cost" title="Cost">
+        <input id="svcAccuracy" type="text" placeholder="Measured accuracy (optional)" title="Accuracy">
+        <input id="svcWork" type="text" placeholder="Work performed" class="f2" title="Work performed">
+        <button class="btn sm svc-add-btn" id="svcAddBtn" type="button">+ Add service record</button>
+      </div>
+    </div>
+  </div>
+  <div class="modal-foot"><button class="btn ghost" id="formCancel">Cancel</button>
+    <div style="display:flex;gap:8px"><button class="btn" id="formSaveNew">Save &amp; add another</button><button class="btn primary" id="formSave">Save watch</button></div></div>
+</div></div>
+
+<!-- owner -->
+<div class="modal-scrim" id="ownerScrim"><div class="modal">
+  <div class="modal-head"><h3>Owner &amp; succession</h3><button class="x" id="ownerClose"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="modal-body">
+    <p class="dialog-text" style="margin-top:0">Who this register belongs to, and who may act on it. Stored inside the encrypted vault and printed on the insurance schedule and estate register. <b>Do not put your passphrase here</b> — see Succession &amp; recovery for why, and where it should go instead.</p>
+    <div class="grid" id="ownerGrid" style="margin-top:18px"></div>
+  </div>
+  <div class="modal-foot"><a id="ownerSucc" style="font-size:12px">Read: succession &amp; recovery →</a><button class="btn primary" id="ownerSave">Save owner details</button></div>
+</div></div>
+
+<!-- data menu -->
+<div class="modal-scrim" id="menuScrim"><div class="modal narrow">
+  <div class="modal-head"><h3>Vault, backup &amp; print</h3><button class="x" id="menuClose"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="modal-body" style="display:flex;flex-direction:column;gap:10px">
+    <div class="eyebrow" style="margin-bottom:-2px">Encrypted vault</div>
+    <button class="btn" id="mExpEnc"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg> Save encrypted vault (.vault.json)</button>
+    <button class="btn" id="mImport"><svg viewBox="0 0 24 24"><path d="M12 21V9m0 0l-4 4m4-4l4 4M5 3h14"/></svg> Open / import backup</button>
+    <div class="eyebrow" style="margin-top:10px;margin-bottom:-2px">Plain (unencrypted)</div>
+    <button class="btn ghost" id="mExpPlain"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg> Export plain JSON</button>
+    <div class="eyebrow" style="margin-top:10px;margin-bottom:-2px">Documents — print or Save as PDF</div>
+    <button class="btn" id="mPrintIns"><svg viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 18H4v-6h16v6h-2M8 14h8v6H8z"/></svg> Insurance schedule</button>
+    <button class="btn" id="mPrintEst"><svg viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 18H4v-6h16v6h-2M8 14h8v6H8z"/></svg> Estate register</button>
+    <div class="eyebrow" style="margin-top:10px;margin-bottom:-2px">Danger zone</div>
+    <button class="btn danger ghost" id="mWipe"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg> Erase local database</button>
+    <input type="file" id="fileInput" accept=".json,application/json" style="display:none">
+  </div>
+  <div class="modal-foot"><span class="dialog-text" style="font-size:11px">The encrypted vault is what you truly own. In Vault-only mode, save it before closing or changes are lost.</span></div>
+</div></div>
+
+<!-- passphrase -->
+<div class="modal-scrim" id="pwScrim"><div class="modal narrow">
+  <div class="modal-head"><h3 id="pwTitle">Passphrase</h3><button class="x" id="pwClose"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="modal-body"><p class="dialog-text" id="pwMsg"></p>
+    <input type="password" class="pw-input" id="pwInput" placeholder="Passphrase" autocomplete="off">
+    <input type="password" class="pw-input" id="pwInput2" placeholder="Confirm passphrase" autocomplete="off" style="display:none">
+    <div class="pw-note" id="pwNote"></div></div>
+  <div class="modal-foot"><button class="btn ghost" id="pwCancel">Cancel</button><button class="btn primary" id="pwOk">Continue</button></div>
+</div></div>
+
+<!-- confirm -->
+<div class="modal-scrim" id="confScrim"><div class="modal narrow">
+  <div class="modal-head"><h3 id="confTitle">Confirm</h3></div>
+  <div class="modal-body"><p class="dialog-text" id="confMsg"></p></div>
+  <div class="modal-foot"><button class="btn ghost" id="confCancel">Cancel</button><button class="btn primary" id="confOk">Confirm</button></div>
+</div></div>
+
+<!-- help -->
+<div class="modal-scrim" id="helpScrim"><div class="modal">
+  <div class="modal-head"><h3>How it works</h3><button class="x" id="helpClose"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="modal-body dialog-text" style="line-height:1.7">
+    <p><b>Nothing leaves this machine.</b> No servers, no accounts, no telemetry, no network calls of any kind.</p>
+    <p><b>Two storage modes.</b> <b>Local database</b> keeps your collection in this browser's store (convenient, but plaintext on this host). <b>Vault-only</b> writes nothing to the browser — data lives in memory, you open and save encrypted <span class="num">.vault</span> files, and closing the tab leaves no trace. Vault-only is the mode for running from a USB stick on a machine you don't want to leave data on.</p>
+    <p><b>Encryption.</b> Encrypted vaults use AES-256-GCM. A random master key encrypts the data; your passphrase only wraps that master key (PBKDF2, 250,000 rounds). No third-party crypto. There is no backdoor and <b>no password reset</b> — lose the passphrase and the vault is unrecoverable by anyone.</p>
+    <p><b>Shard-ready by design.</b> Because the passphrase wraps a master key rather than encrypting the data directly, that master key is a single secret that can later be split with Shamir's Secret Sharing (e.g. any 3 of 5 shares reconstruct it) for inheritance — without re-encrypting anything. That layer isn't built yet; the format is prepared for it.</p>
+    <p><b>If encryption is unavailable</b> over <span class="num">file://</span>, serve from localhost: <span class="num" style="color:var(--brass)">python3 -m http.server 8080</span> → <span class="num">http://localhost:8080/</span>. Still fully offline.</p>
+    <p><b>Documents.</b> The insurance schedule and estate register open the print dialog — choose <b>Save as PDF</b>. The insurance schedule flags every watch whose market value exceeds its scheduled (insured) value.</p>
+  </div>
+  <div class="modal-foot"><span></span><button class="btn primary" id="helpOk">Got it</button></div>
+</div></div>
+
+<!-- succession -->
+<div class="modal-scrim" id="succScrim"><div class="modal">
+  <div class="modal-head"><h3>Succession &amp; recovery</h3><button class="x" id="succClose"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+  <div class="modal-body dialog-text" style="line-height:1.7">
+    <p><b>The honest version first:</b> there is no "reset password by email." That isn't an oversight — it's the security. An email reset is a backdoor, and a backdoor is exactly what an air-gapped encrypted vault exists to avoid. Any mechanism that could let <i>you</i> back in without the passphrase could let someone else in too. So the recovery question isn't "how does the app let heirs in" — the app can't and shouldn't. It's <b>"where does a copy of the key live, and who is trusted to hold it."</b></p>
+    <p><b>The right mechanism for one person's collection</b> is custody, not code:</p>
+    <p style="padding-left:14px">— Write the passphrase on paper. Seal it. Place it where your estate is settled: a <b>safe-deposit box</b>, or with your <b>estate attorney</b>, or in a fireproof home safe your executor can reach. Reference its existence and location in your <b>will</b> (never write the passphrase itself in the will — wills become public record in probate).</p>
+    <p style="padding-left:14px">— Keep a copy of an <b>encrypted vault export</b> with that sealed passphrase, plus a copy of this app file, so an heir has the data, the key, and the tool together.</p>
+    <p style="padding-left:14px">— Fill in the <b>Owner &amp; succession</b> panel: your executor and alternate contact, and a note describing where the sealed passphrase is held (the note, not the passphrase). That travels inside the encrypted vault.</p>
+    <p><b>The stronger mechanism, when you want it (the "sharded" option):</b> split the key with Shamir's Secret Sharing — say 5 shares where any 3 reconstruct it — and hand shares to your executor, a trusted child, and your attorney. No single person can open the vault alone or be coerced into it, losing one share doesn't lock anyone out, and after your death the fiduciaries jointly reconstruct. This is how serious crypto custody handles inheritance. The vault format here is already built for it; the splitting tool is the next piece to add when you decide you want it.</p>
+    <p><b>What protects you while you're alive</b> is not app cleverness: turn on <b>full-disk encryption</b> (FileVault / BitLocker), keep the vault and its passphrase in different places, and in Vault-only mode nothing plaintext is left behind on the host at all.</p>
+  </div>
+  <div class="modal-foot"><span></span><button class="btn primary" id="succOk">Understood</button></div>
+</div></div>
+
+<div class="toast-wrap" id="toasts"></div>
+<div class="print-doc" id="printDoc"></div>
+
+<script>
+"use strict";
+/* ═══ WATCH REGISTER — everything runs locally. No fetch(), no XHR, no network. ═══ */
+
+const WORDMARK="REGISTER";
+const SEED_DATA = [];   /* starts empty — each user builds their own collection */
+const OWNER_DEFAULT = {
+  name:"", address:"", phone:"", email:"", dob:"",
+  altName:"", altRelation:"", altPhone:"", altEmail:"",
+  executor:"", passphraseCustody:"", successionNotes:""
+};
+
+const CATEGORIES=["Dive","Dress","Field","Pilot","Chronograph","Field/Moon","Other"];
+const ROTATIONS=["Daily Beater","Weekend Warrior","Activity Specific","Social / Evening","Special Occasion","Vault / Collector"];
+const DISPLAY_CUR="$";
+const BRANDS=["Rolex","Omega","Zenith","IWC","Cartier","Tudor","Damasko","Smiths","Nivada","Hanhart","Lorier","Panerai","Seiko","Grand Seiko","Longines","Breitling","Hamilton","Sinn","Oris","Tissot","Baltic","Monta","Laco","Sternglas","Soner","Timex","Christopher Ward","Studio Underdog","Seagull 1963","Echo/Nertua"];
+
+/* schema */
+const FIELDS_CORE=[
+  {sec:"Identification"},
+  {k:"category",label:"Category",type:"select",opts:CATEGORIES,def:"Field"},
+  {k:"rotation",label:"Rotation status",type:"select",opts:ROTATIONS,def:"Daily Beater"},
+  {k:"status",label:"Status",type:"select",opts:["Active","Sold"],def:"Active"},
+  {k:"maker",label:"Maker / brand",type:"text",placeholder:"Rolex"},
+  {k:"model",label:"Model",type:"text",placeholder:"Explorer"},
+  {k:"reference",label:"Reference no.",type:"text",mono:true},
+  {k:"serial",label:"Serial no.",type:"text",mono:true},
+  {k:"movement",label:"Movement / caliber",type:"text",mono:true,placeholder:"cal. 3230"},
+  {k:"caseMaterial",label:"Case material",type:"text"},
+  {k:"caseSize",label:"Case size",type:"text",mono:true,placeholder:"39mm"},
+  {k:"condition",label:"Condition",type:"select",opts:["","Unworn","Mint","Excellent","Worn","Fair"],def:""},
+  {k:"boxPapers",label:"Box & papers",type:"select",opts:["","Full set","Papers only","Box only","Watch only","N/A"],def:""},
+  {sec:"Acquisition"},
+  {k:"acquiredDate",label:"Date of purchase",type:"date"},
+  {k:"msrp",label:"MSRP at purchase",type:"money"},
+  {k:"acquiredPrice",label:"Purchase price",type:"money"},
+  {k:"seller",label:"Dealer / source",type:"text"},
+  {sec:"Valuation & coverage"},
+  {k:"marketValue",label:"Current market value",type:"money",hint:"latest comp"},
+  {k:"insured",label:"Insured",type:"select",opts:["No","Yes"],def:"No"},
+  {k:"scheduledValue",label:"Scheduled (insured) value",type:"money",hint:"rider amount"},
+  {sec:"Warranty"},
+  {k:"warrantyYears",label:"Warranty length (yrs)",type:"text",mono:true,placeholder:"2"},
+  {k:"warrantyStart",label:"Warranty activated",type:"date"},
+  {sec:"Disposition (estate)"},
+  {k:"disposition",label:"Tier",type:"select",opts:["","Heirloom","Tool-tier"],def:""},
+  {k:"heirloomTo",label:"Designated to",type:"text",placeholder:"Brooke"},
+  {k:"rating",label:"Ledger rating",type:"select",opts:["","Hold","Buy","Sell","Watch"],def:"Hold"},
+  {sec:"Service"},
+  {k:"lastService",label:"Last serviced",type:"date"},
+  {k:"serviceBy",label:"Serviced by",type:"text"},
+  {sec:"Sale (if sold)"},
+  {k:"soldDate",label:"Date of sale",type:"date"},
+  {k:"soldPrice",label:"Sale price",type:"money"},
+  {sec:"Provenance & notes"},
+  {k:"provenance",label:"Provenance",type:"textarea",full:true,placeholder:"Delivery card, prior owners, service papers, chain of custody…"},
+  {k:"notes",label:"Notes",type:"textarea",full:true},
+];
+const FIELDS_ADV=[
+  {sec:"Movement & mechanical"},
+  {k:"movementType",label:"Movement type",type:"select",opts:["","Manual","Automatic","Quartz","Spring Drive"],def:""},
+  {k:"movementBase",label:"Movement base",type:"select",opts:["","In-house","Modified ETA","Modified Sellita","Modified Miyota","Modified — other","Unknown"],def:""},
+  {k:"powerReserve",label:"Power reserve",type:"text",mono:true,placeholder:"70 hours"},
+  {k:"jewelCount",label:"Jewel count",type:"text",mono:true,placeholder:"31"},
+  {k:"complications",label:"Complications",type:"text",placeholder:"GMT, chronograph, date"},
+  {k:"waterResistance",label:"Water resistance",type:"text",mono:true,placeholder:"300m"},
+  {sec:"Aesthetics & construction"},
+  {k:"dialColor",label:"Dial color",type:"text",placeholder:"Black"},
+  {k:"dialFinish",label:"Dial finish",type:"text",placeholder:"Sunburst"},
+  {k:"bezelMaterial",label:"Bezel material",type:"text",placeholder:"Ceramic"},
+  {k:"crystalType",label:"Crystal",type:"select",opts:["","Sapphire","Mineral","Acrylic / Hesalite","Unknown"],def:""},
+  {k:"lumeType",label:"Lume",type:"text",placeholder:"Super-LumiNova"},
+  {k:"strapMaterial",label:"Strap / bracelet",type:"text",placeholder:"Oyster bracelet, steel"},
+  {k:"claspType",label:"Clasp",type:"text",placeholder:"Deployant"},
+  {k:"lugWidth",label:"Lug width",type:"text",mono:true,placeholder:"20mm"},
+  {k:"countryOfManufacture",label:"Country of manufacture",type:"text",placeholder:"Swiss Made"},
+  {sec:"Provenance & documentation"},
+  {k:"acquisitionChannel",label:"Acquisition channel",type:"select",opts:["","Authorized dealer","Private sale","Auction house","Grey market","Estate / inheritance"],def:""},
+  {k:"limitedEditionNumber",label:"Limited edition no.",type:"text",mono:true,placeholder:"42/500"},
+  {k:"authCardNumber",label:"Authenticity / warranty card no.",type:"text",mono:true},
+  {k:"auctionHouse",label:"Auction house",type:"text",placeholder:"Christie's, Geneva"},
+  {k:"auctionLot",label:"Auction lot no.",type:"text",mono:true,placeholder:"Lot 118"},
+  {k:"importDutyStatus",label:"Import / duty status",type:"select",opts:["","Not imported","Imported — duty paid","Imported — refund pending","Imported — refund received"],def:""},
+  {sec:"Financial detail"},
+  {k:"purchaseCurrency",label:"Purchase currency",type:"select",opts:["USD","GBP","EUR","CHF","JPY","Other"],def:"USD"},
+  {k:"dutiesPaid",label:"Duties / tariffs paid",type:"money"},
+  {k:"shippingCost",label:"Shipping / insurance-in-transit",type:"money"},
+  {k:"valueSource",label:"Market value source",type:"text",placeholder:"e.g. Chrono24 comp, dealer quote"},
+  {k:"appraiser",label:"Appraiser",type:"text"},
+  {k:"appraisalDate",label:"Appraisal date",type:"date"},
+  {k:"appraisalRef",label:"Appraisal reference",type:"text",placeholder:"doc / policy ref"},
+  {sec:"Storage & wear"},
+  {k:"storageLocation",label:"Storage location",type:"select",opts:["","Worn / in rotation","Home safe","Safe-deposit box","Dehumidifier / watch box","Winder"],def:""},
+  {k:"lastWornDate",label:"Last worn",type:"date"},
+  {sec:"Insurance detail"},
+  {k:"insurerName",label:"Insurer",type:"text"},
+  {k:"policyNumber",label:"Policy / rider no.",type:"text",mono:true},
+  {k:"insuranceRenewal",label:"Renewal date",type:"date"},
+  {k:"deductible",label:"Deductible",type:"money"},
+];
+const FIELD_KEYS=FIELDS_CORE.filter(f=>f.k).map(f=>f.k).concat(FIELDS_ADV.filter(f=>f.k).map(f=>f.k));
+const MONEY_KEYS=["msrp","acquiredPrice","marketValue","scheduledValue","soldPrice","dutiesPaid","shippingCost","deductible"];
+
+const OWNER_FIELDS=[
+  {sec:"Owner"},
+  {k:"name",label:"Full name",type:"text"},{k:"dob",label:"Date of birth",type:"date"},
+  {k:"phone",label:"Phone",type:"text"},{k:"email",label:"Email",type:"text"},
+  {k:"address",label:"Address",type:"text",full:true},
+  {sec:"Alternate / emergency contact"},
+  {k:"altName",label:"Name",type:"text"},{k:"altRelation",label:"Relationship",type:"text"},
+  {k:"altPhone",label:"Phone",type:"text"},{k:"altEmail",label:"Email",type:"text"},
+  {sec:"Succession"},
+  {k:"executor",label:"Executor / attorney",type:"text",full:true},
+  {k:"passphraseCustody",label:"Where the sealed passphrase is held (describe — never the passphrase itself)",type:"text",full:true,placeholder:"e.g. Safe-deposit box #### at ____ Bank; key with executor"},
+  {k:"successionNotes",label:"Succession notes for heirs",type:"textarea",full:true},
+];
+
+/* ── IndexedDB ── */
+const DB_NAME="watch_register_db",DB_VER=1,STORE="assets",META="meta";
+let _db=null;
+function openDB(){return new Promise((res,rej)=>{const rq=indexedDB.open(DB_NAME,DB_VER);
+  rq.onupgradeneeded=e=>{const db=e.target.result;if(!db.objectStoreNames.contains(STORE))db.createObjectStore(STORE,{keyPath:"id"});if(!db.objectStoreNames.contains(META))db.createObjectStore(META,{keyPath:"k"});};
+  rq.onsuccess=e=>res(e.target.result);rq.onerror=e=>rej(e.target.error);});}
+function tx(s,m){return _db.transaction(s,m).objectStore(s);}
+function idbAll(){return new Promise((res,rej)=>{const r=tx(STORE,"readonly").getAll();r.onsuccess=()=>res(r.result||[]);r.onerror=()=>rej(r.error);});}
+function idbPut(rec){return new Promise((res,rej)=>{const r=tx(STORE,"readwrite").put(rec);r.onsuccess=()=>res();r.onerror=()=>rej(r.error);});}
+function idbDel(id){return new Promise((res,rej)=>{const r=tx(STORE,"readwrite").delete(id);r.onsuccess=()=>res();r.onerror=()=>rej(r.error);});}
+function idbClear(){return new Promise((res,rej)=>{const r=tx(STORE,"readwrite").clear();r.onsuccess=()=>res();r.onerror=()=>rej(r.error);});}
+function metaGet(k){return new Promise((res)=>{try{const r=tx(META,"readonly").get(k);r.onsuccess=()=>res(r.result?r.result.v:null);r.onerror=()=>res(null);}catch(e){res(null);}});}
+function metaPut(k,v){return new Promise((res)=>{try{const r=tx(META,"readwrite").put({k,v});r.onsuccess=()=>res();r.onerror=()=>res();}catch(e){res();}});}
+
+/* ── State ── */
+let ASSETS=[];
+let OWNER={...OWNER_DEFAULT};
+let MODE="local";           // 'local' | 'vault'
+let dirty=false;            // unsaved changes in vault-only mode
+let editingId=null, formPhotos=[], formServiceLog=[];
+const ui={q:"",cat:"",rot:"",disp:"",cover:"",status:"",sortKey:"marketValue",sortDir:-1};
+
+/* ── Utils ── */
+const $=s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll(s));
+const uuid=()=>crypto.randomUUID?crypto.randomUUID():"id-"+Date.now()+"-"+Math.random().toString(16).slice(2);
+const esc=s=>(s==null?"":String(s)).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const num=v=>{if(typeof v==="number")return isFinite(v)?v:null;const n=parseFloat(String(v??"").replace(/[^0-9.\-]/g,""));return isFinite(n)?n:null;};
+const fmtMoney=(v,s=DISPLAY_CUR)=>{const n=num(v);return n==null?"":s+n.toLocaleString("en-US",{maximumFractionDigits:0});};
+function fmtDate(s){if(!s)return"";const d=new Date(s.length<=10?s+"T00:00:00":s);return isNaN(d)?esc(s):d.toLocaleDateString("en-US",{year:"numeric",month:"short",day:"numeric"});}
+const today=()=>new Date().toISOString().slice(0,10);
+const isHeld=a=>a.status!=="Sold";
+function coverageState(a){if(!isHeld(a))return"sold";const m=num(a.marketValue),s=num(a.scheduledValue);const ins=(a.insured===true||a.insured==="Yes");if(!ins&&s==null)return"none";if(m!=null&&s!=null)return m>s?"under":"ok";return"partial";}
+function warrantyInfo(a){const yrs=num(a.warrantyYears),st=a.warrantyStart;if(!yrs||!st)return null;const d=new Date(st.length<=10?st+"T00:00:00":st);if(isNaN(d))return null;const exp=new Date(d);exp.setFullYear(exp.getFullYear()+yrs);const days=Math.round((exp-new Date())/864e5);return{exp,days,state:days<0?"exp":days<=90?"soon":"act"};}
+function toast(m,warn){const t=document.createElement("div");t.className="toast"+(warn?" warn":"");t.textContent=m;$("#toasts").appendChild(t);setTimeout(()=>{t.style.opacity="0";t.style.transition="opacity .3s";setTimeout(()=>t.remove(),320);},2600);}
+function markDirty(){dirty=true;renderLock();}
+function renderLock(){const el=$("#lockState");if(MODE==="vault"){el.style.display="inline-flex";el.classList.toggle("dirty",dirty);$("#lockText").textContent=dirty?"unsaved — save vault":"in memory";}else{el.style.display="inline-flex";el.classList.remove("dirty");$("#lockText").textContent="local database";}}
+
+/* ── Parser (heuristic) ── */
+function parseListing(text){const out={};if(!text||!text.trim())return out;const t=text.replace(/\s+/g," ").trim();
+  let hit=null,idx=-1,len=0;for(const b of BRANDS){const i=t.toLowerCase().indexOf(b.toLowerCase());if(i>=0&&(idx<0||b.length>len)){hit=b;idx=i;len=b.length;}}
+  if(hit){out.maker=hit;const after=t.slice(idx+hit.length).replace(/^[\s,–-]+/,"");const m=after.match(/^([A-Za-z0-9'’\- ]{2,40}?)(?=[,.;(]|\s+cal\b|\s+ref\b|\s+\d{2}(\.\d)?\s?mm|$)/i);if(m){const c=m[1].trim();if(c&&!/^\d{4}$/.test(c))out.model=c;}}
+  const yrs=[...t.matchAll(/(?<![\d$£€.])((?:19|20)\d{2})(?![\d])/g)].map(x=>x[1]);
+  let ref=(t.match(/\bref(?:erence)?\.?\s*([A-Z0-9][A-Z0-9.\/-]{2,})/i)||[])[1];if(!ref){const c=[...t.matchAll(/\b(\d{4,7})\b/g)].map(x=>x[1]).filter(x=>!(yrs[0]&&x===yrs[0]));if(c.length)ref=c[0];}if(ref)out.reference=ref;
+  const cal=(t.match(/\bcal(?:ibre|iber)?\.?\s*([A-Z0-9][A-Z0-9.\/-]*)/i)||[])[1];if(cal)out.movement="cal. "+cal;
+  const mm=(t.match(/\b(\d{2}(?:\.\d)?)\s?mm\b/i)||[])[1];if(mm)out.caseSize=mm+"mm";
+  const price=t.match(/([£$€])\s?([\d][\d,]*(?:\.\d{2})?)/);if(price)out.acquiredPrice=price[2].replace(/,/g,"");
+  if(/\b(full set|box (?:and|&|\+) papers|b\s?&\s?p)\b/i.test(t))out.boxPapers="Full set";else if(/\bpapers\b/i.test(t))out.boxPapers="Papers only";
+  const cond=(t.match(/\b(unworn|mint|excellent|very good|worn|good|fair)\b/i)||[])[1];if(cond)out.condition=cond.replace(/^\w/,c=>c.toUpperCase());
+  const ser=(t.match(/\bserial\.?\s*(?:no\.?|#)?\s*:?\s*([A-Z0-9][A-Z0-9-]{4,})/i)||[])[1];if(ser)out.serial=ser;
+  if(/\bheirloom\b/i.test(t))out.disposition="Heirloom";
+  return out;}
+
+/* ── Envelope crypto (WebCrypto) ── */
+const ITER=250000;
+const b64=b=>{const a=new Uint8Array(b);let s="";for(let i=0;i<a.length;i++)s+=String.fromCharCode(a[i]);return btoa(s);};
+const ub=s=>{const a=atob(s),o=new Uint8Array(a.length);for(let i=0;i<a.length;i++)o[i]=a.charCodeAt(i);return o;};
+async function kekFrom(pass,salt){const base=await crypto.subtle.importKey("raw",new TextEncoder().encode(pass),"PBKDF2",false,["deriveKey"]);return crypto.subtle.deriveKey({name:"PBKDF2",salt,iterations:ITER,hash:"SHA-256"},base,{name:"AES-GCM",length:256},false,["wrapKey","unwrapKey","encrypt","decrypt"]);}
+async function seal(obj,pass){const MK=await crypto.subtle.generateKey({name:"AES-GCM",length:256},true,["encrypt","decrypt"]);const salt=crypto.getRandomValues(new Uint8Array(16));const kek=await kekFrom(pass,salt);const wIv=crypto.getRandomValues(new Uint8Array(12));const wrapped=await crypto.subtle.wrapKey("raw",MK,kek,{name:"AES-GCM",iv:wIv});const dIv=crypto.getRandomValues(new Uint8Array(12));const ct=await crypto.subtle.encrypt({name:"AES-GCM",iv:dIv},MK,new TextEncoder().encode(JSON.stringify(obj)));return{format:"ledger.vault",v:2,kdf:"PBKDF2-SHA256",iter:ITER,salt:b64(salt),wrap:{iv:b64(wIv),key:b64(wrapped)},data:{iv:b64(dIv),ct:b64(ct)}};}
+async function unseal(pkg,pass){const kek=await kekFrom(pass,ub(pkg.salt));const MK=await crypto.subtle.unwrapKey("raw",ub(pkg.wrap.key),kek,{name:"AES-GCM",iv:ub(pkg.wrap.iv)},{name:"AES-GCM",length:256},false,["decrypt"]);const pt=await crypto.subtle.decrypt({name:"AES-GCM",iv:ub(pkg.data.iv)},MK,ub(pkg.data.ct));return JSON.parse(new TextDecoder().decode(pt));}
+const cryptoAvailable=()=>!!(window.crypto&&window.crypto.subtle);
+
+/* ── Filter / sort ── */
+function currentRows(){let r=ASSETS.slice();const q=ui.q.trim().toLowerCase();
+  if(q)r=r.filter(a=>[a.maker,a.model,a.reference,a.serial,a.movement].some(v=>(v||"").toLowerCase().includes(q)));
+  if(ui.cat)r=r.filter(a=>a.category===ui.cat);
+  if(ui.rot)r=r.filter(a=>a.rotation===ui.rot);
+  if(ui.disp){if(ui.disp==="__none")r=r.filter(a=>!a.disposition);else r=r.filter(a=>a.disposition===ui.disp);}
+  if(ui.cover)r=r.filter(a=>coverageState(a)===ui.cover);
+  if(ui.status)r=r.filter(a=>ui.status==="Active"?isHeld(a):!isHeld(a));
+  const k=ui.sortKey,d=ui.sortDir;
+  r.sort((a,b)=>{if(["msrp","acquiredPrice","marketValue","scheduledValue"].includes(k)){return((num(a[k])??-Infinity)-(num(b[k])??-Infinity))*d;}let x=(a[k]||"").toString().toLowerCase(),y=(b[k]||"").toString().toLowerCase();return x<y?-1*d:x>y?1*d:0;});
+  return r;}
+
+/* ── Readout ── */
+function renderReadout(){const held=ASSETS.filter(isHeld);const sold=ASSETS.length-held.length;
+  let paid=0,mkt=0,under=0,gap=0,uninsured=0;
+  held.forEach(a=>{paid+=num(a.acquiredPrice)||0;mkt+=num(a.marketValue)||0;const cs=coverageState(a);if(cs==="none"||cs==="partial")uninsured++;if(cs==="under"){under++;gap+=num(a.marketValue)-num(a.scheduledValue);}});
+  const pl=mkt-paid;
+  const c=[];
+  c.push(`<div class="stat"><span class="k">Held</span><span class="v">${held.length}${sold?`<small>+${sold} sold</small>`:""}</span></div>`);
+  c.push(`<div class="stat"><span class="k">Market value</span><span class="v">${mkt?fmtMoney(mkt):"—"}</span></div>`);
+  c.push(`<div class="stat"><span class="k">Cost basis</span><span class="v">${paid?fmtMoney(paid):"—"}</span></div>`);
+  c.push(`<div class="stat ${pl>=0?"pl-pos":"pl-neg"}"><span class="k">Unrealized</span><span class="v">${(pl>=0?"+":"−")+fmtMoney(Math.abs(pl))}</span></div>`);
+  if(under>0)c.push(`<div class="stat flag warn"><span class="k">Underinsured · gap</span><span class="v">${under}<small>· ${fmtMoney(gap)}</small></span></div>`);
+  if(uninsured>0)c.push(`<div class="stat"><span class="k">Uninsured</span><span class="v">${uninsured}</span></div>`);
+  $("#readout").innerHTML=c.join("");}
+
+/* ── Table ── */
+const COLS=[
+  {k:"__t",label:"",sort:false},
+  {k:"maker",label:"Watch",sort:true},
+  {k:"category",label:"Category",sort:true},
+  {k:"reference",label:"Ref / Serial",sort:true},
+  {k:"acquiredPrice",label:"Paid",sort:true,cls:"r"},
+  {k:"marketValue",label:"Market",sort:true,cls:"r"},
+  {k:"scheduledValue",label:"Insured",sort:true,cls:"r"},
+  {k:"__cov",label:"Cover",sort:false},
+  {k:"__d",label:"Disposition",sort:false},
+];
+function renderTable(){const rows=currentRows();
+  $("#countNote").textContent=rows.length===ASSETS.length?`${ASSETS.length} piece${ASSETS.length!==1?"s":""}`:`${rows.length} of ${ASSETS.length}`;
+  const wrap=$("#tableWrap");
+  if(ASSETS.length===0){wrap.innerHTML=`<div class="empty"><h2>Empty register</h2><p>Add a watch, or open an encrypted vault.</p><div class="row"><button class="btn primary" onclick="openForm()">＋ Add watch</button><button class="btn" onclick="importFlow()">Open vault</button></div></div>`;return;}
+  if(rows.length===0){wrap.innerHTML=`<div class="empty"><h2>No matches</h2><p>Nothing fits the current filters.</p><div class="row"><button class="btn" onclick="clearFilters()">Clear filters</button></div></div>`;return;}
+  const thead=COLS.map(c=>{const ar=(ui.sortKey===c.k)?`<span class="arw">${ui.sortDir>0?"▲":"▼"}</span>`:"";return `<th class="${c.cls||""}${c.sort?"":" no-sort"}" ${c.sort?`data-sort="${c.k}"`:""}>${esc(c.label)}${ar}</th>`;}).join("");
+  const body=rows.map(a=>{const cov=coverageState(a);
+    const covCell=cov==="sold"?`<span class="num" style="color:var(--muted-2);font-size:11px">sold</span>`:
+      (cov==="under"?`<span class="dot warn"></span><span class="num gap-up" style="font-size:11px">Under ${fmtMoney(num(a.marketValue)-num(a.scheduledValue))}</span>`:
+       cov==="ok"?`<span class="dot ok"></span><span class="num" style="font-size:11px">OK</span>`:
+       `<span class="dot na"></span><span class="num" style="font-size:11px;color:var(--muted-2)">—</span>`);
+    const thumb=(a.photos&&a.photos[0])?`<img class="thumb" style="width:34px;height:34px;border-radius:2px;object-fit:cover;border:1px solid var(--line-2)" src="${a.photos[0].dataUrl}">`:`<div style="width:34px;height:34px;border-radius:2px;border:1px dashed var(--line-2);display:flex;align-items:center;justify-content:center;color:var(--muted-2);font-size:9px;font-family:var(--mono)">—</div>`;
+    const disp=a.disposition==="Heirloom"?`<span class="chip heir">Heirloom${a.heirloomTo?" · "+esc(a.heirloomTo):""}</span>`:a.disposition==="Tool-tier"?`<span class="chip">Tool-tier</span>`:"";
+    const rat=a.rating&&a.rating!=="Hold"?`<span class="chip ${a.rating==="Sell"?"sell":""}" style="margin-left:6px">${esc(a.rating)}</span>`:"";
+    return `<tr data-id="${a.id}" class="${a.id===editingId?"sel":""} ${isHeld(a)?"":"sold"}">
+      <td>${thumb}</td>
+      <td><div class="cell-obj"><span class="m">${esc(a.maker||"—")} ${esc(a.model||"")}</span><span class="s">${esc([a.rotation,a.caseSize,a.condition].filter(Boolean).join(" · "))}</span></div></td>
+      <td><span class="chip rot">${esc(a.category||"—")}</span></td>
+      <td class="ref">${esc(a.reference||a.serial||"—")}</td>
+      <td class="r money dim">${a.acquiredPrice?fmtMoney(a.acquiredPrice):"—"}</td>
+      <td class="r money">${a.marketValue?fmtMoney(a.marketValue):"<span class='money dim'>—</span>"}</td>
+      <td class="r money">${a.scheduledValue?fmtMoney(a.scheduledValue):"<span class='money dim'>—</span>"}</td>
+      <td>${covCell}</td>
+      <td>${disp}${rat}</td></tr>`;}).join("");
+  wrap.innerHTML=`<table class="reg"><thead><tr>${thead}</tr></thead><tbody>${body}</tbody></table>`;
+  $$("#tableWrap thead th[data-sort]").forEach(th=>th.addEventListener("click",()=>{const k=th.getAttribute("data-sort");if(ui.sortKey===k)ui.sortDir*=-1;else{ui.sortKey=k;ui.sortDir=1;}renderTable();}));
+  $$("#tableWrap tbody tr").forEach(tr=>tr.addEventListener("click",()=>openDrawer(tr.getAttribute("data-id"))));}
+
+/* ── Drawer ── */
+const kv=(dt,dd,mono)=>(dd==null||dd==="")?"":`<dt>${esc(dt)}</dt><dd class="${mono?"num":""}">${esc(dd)}</dd>`;
+function openDrawer(id){const a=ASSETS.find(x=>x.id===id);if(!a)return;editingId=id;renderTable();
+  $("#dTitle").textContent=[a.maker,a.model].filter(Boolean).join(" ")||"Untitled";
+  $("#dSub").textContent=[a.category,a.reference?("Ref. "+a.reference):"",a.rotation].filter(Boolean).join("  ·  ");
+  const cov=coverageState(a);let cline="";
+  if(cov==="under")cline=`<div class="cover-line warn"><span class="dot warn"></span>Underinsured by ${fmtMoney(num(a.marketValue)-num(a.scheduledValue))} — scheduled ${fmtMoney(a.scheduledValue)} vs market ${fmtMoney(a.marketValue)}</div>`;
+  else if(cov==="ok")cline=`<div class="cover-line ok"><span class="dot ok"></span>Scheduled at ${fmtMoney(a.scheduledValue)} — adequate</div>`;
+  const w=warrantyInfo(a);let wline="";
+  if(w)wline=`<div class="war-line ${w.state}">${w.state==="exp"?"Warranty expired "+fmtDate(w.exp.toISOString().slice(0,10)):w.state==="soon"?"Warranty expires "+fmtDate(w.exp.toISOString().slice(0,10))+` (${w.days}d)`:"Warranty active to "+fmtDate(w.exp.toISOString().slice(0,10))}</div>`;
+  const photos=(a.photos&&a.photos.length)?`<div class="photos">${a.photos.map(p=>`<img src="${p.dataUrl}">`).join("")}</div>`:"";
+  const sec=(l,i)=>i.trim()?`<div class="spec-sec"><div class="lbl">${l}</div><dl class="kv">${i}</dl></div>`:"";
+  const prose=(l,t)=>(t&&t.trim())?`<div class="spec-sec"><div class="lbl">${l}</div><div class="prose">${esc(t)}</div></div>`:"";
+  const idB=[kv("Category",a.category),kv("Rotation",a.rotation),kv("Maker",a.maker),kv("Model",a.model),kv("Reference",a.reference,1),kv("Serial",a.serial,1),kv("Movement",a.movement,1),kv("Case",[a.caseMaterial,a.caseSize].filter(Boolean).join(", ")),kv("Condition",a.condition),kv("Box & papers",a.boxPapers)].join("");
+  const acqB=[kv("Purchased",fmtDate(a.acquiredDate)),kv("MSRP",fmtMoney(a.msrp),1),kv("Paid",fmtMoney(a.acquiredPrice),1),kv("Source",a.seller)].join("");
+  const valB=[kv("Market value",fmtMoney(a.marketValue),1),kv("Insured",(a.insured===true||a.insured==="Yes")?"Yes":"No"),kv("Scheduled value",fmtMoney(a.scheduledValue),1)].join("");
+  const dispB=[kv("Tier",a.disposition),kv("Designated to",a.heirloomTo),kv("Rating",a.rating)].join("");
+  const svcB=[kv("Last serviced",fmtDate(a.lastService)),kv("Serviced by",a.serviceBy),kv("Warranty",a.warrantyYears?a.warrantyYears+" yr from "+fmtDate(a.warrantyStart):"")].join("");
+  const saleB=!isHeld(a)?[kv("Sold",fmtDate(a.soldDate)),kv("Sale price",fmtMoney(a.soldPrice),1)].join(""):"";
+  const dutiesPlusShip=(num(a.dutiesPaid)||0)+(num(a.shippingCost)||0);
+  const costBasisLine=(dutiesPlusShip>0&&a.acquiredPrice!=null)?`<div class="cost-basis-line">Total cost basis (incl. duties/shipping): ${fmtMoney(num(a.acquiredPrice)+dutiesPlusShip)}${a.purchaseCurrency&&a.purchaseCurrency!=="USD"?" "+esc(a.purchaseCurrency):""}</div>`:"";
+  const mechB=[kv("Movement type",a.movementType),kv("Movement base",a.movementBase),kv("Power reserve",a.powerReserve,1),kv("Jewels",a.jewelCount,1),kv("Complications",a.complications),kv("Water resistance",a.waterResistance,1)].join("");
+  const aesB=[kv("Dial color",a.dialColor),kv("Dial finish",a.dialFinish),kv("Bezel material",a.bezelMaterial),kv("Crystal",a.crystalType),kv("Lume",a.lumeType),kv("Strap / bracelet",a.strapMaterial),kv("Clasp",a.claspType),kv("Lug width",a.lugWidth,1),kv("Country of manufacture",a.countryOfManufacture)].join("");
+  const provB=[kv("Acquisition channel",a.acquisitionChannel),kv("Limited edition no.",a.limitedEditionNumber,1),kv("Auth/warranty card no.",a.authCardNumber,1),kv("Auction house",a.auctionHouse),kv("Auction lot",a.auctionLot,1),kv("Import/duty status",a.importDutyStatus)].join("");
+  const finB=[kv("Purchase currency",a.purchaseCurrency),kv("Duties/tariffs paid",fmtMoney(a.dutiesPaid),1),kv("Shipping/insurance",fmtMoney(a.shippingCost),1),kv("Value source",a.valueSource),kv("Appraiser",a.appraiser),kv("Appraisal date",fmtDate(a.appraisalDate)),kv("Appraisal ref.",a.appraisalRef)].join("");
+  const storB=[kv("Storage location",a.storageLocation),kv("Last worn",fmtDate(a.lastWornDate))].join("");
+  const insB=[kv("Insurer",a.insurerName),kv("Policy/rider no.",a.policyNumber,1),kv("Renewal date",fmtDate(a.insuranceRenewal)),kv("Deductible",fmtMoney(a.deductible),1)].join("");
+  const svcLog=(a.serviceHistory&&a.serviceHistory.length)?`<div class="spec-sec"><div class="lbl">Full service history</div>${a.serviceHistory.slice().sort((x,y)=>(y.date||"").localeCompare(x.date||"")).map(s=>svcRowHTML(s,null)).join("")}</div>`:"";
+  $("#dBody").innerHTML=photos+cline+wline+sec("Identification",idB)+sec("Acquisition",acqB)+costBasisLine+sec("Valuation & coverage",valB)+sec("Movement & mechanical",mechB)+sec("Aesthetics & construction",aesB)+sec("Provenance & documentation",provB)+sec("Financial detail",finB)+sec("Storage & wear",storB)+sec("Insurance detail",insB)+sec("Disposition",dispB)+sec("Service",svcB)+svcLog+(saleB?sec("Sale",saleB):"")+prose("Provenance",a.provenance)+prose("Notes",a.notes);
+  $("#scrim").classList.add("on");$("#drawer").classList.add("on");$("#drawer").setAttribute("aria-hidden","false");}
+function closeDrawer(clear){$("#scrim").classList.remove("on");$("#drawer").classList.remove("on");$("#drawer").setAttribute("aria-hidden","true");if(clear!==false){editingId=null;renderTable();}}
+
+/* ── Form ── */
+function buildGrid(grid,defs){grid.innerHTML="";defs.forEach(f=>{if(f.sec){const s=document.createElement("div");s.className="sec-label";s.textContent=f.sec;grid.appendChild(s);return;}
+  const wrap=document.createElement("div");wrap.className="field"+(f.full?" full":"");wrap.dataset.k=f.k;let ctl;
+  if(f.type==="select")ctl=`<select id="fld_${f.k}">${f.opts.map(o=>`<option value="${esc(o)}">${o===""?"—":esc(o)}</option>`).join("")}</select>`;
+  else if(f.type==="textarea")ctl=`<textarea id="fld_${f.k}" placeholder="${esc(f.placeholder||"")}"></textarea>`;
+  else if(f.type==="money")ctl=`<input id="fld_${f.k}" data-num inputmode="decimal" placeholder="${esc(f.placeholder||"0")}">`;
+  else ctl=`<input id="fld_${f.k}" type="${f.type==="date"?"date":"text"}" class="${f.mono?"num":""}" placeholder="${esc(f.placeholder||"")}" autocomplete="off">`;
+  wrap.innerHTML=`<label for="fld_${f.k}">${esc(f.label)}</label>${ctl}${f.hint?`<div class="hint">${esc(f.hint)}</div>`:""}`;grid.appendChild(wrap);});}
+const setF=(k,v)=>{const el=$("#fld_"+k);if(el)el.value=(v==null?"":v);};
+const getF=k=>{const el=$("#fld_"+k);return el?el.value.trim():"";};
+function renderPhotoStrip(){const strip=$("#photoStrip");if(!strip)return;strip.innerHTML=formPhotos.map((p,i)=>`<div class="pv"><img src="${p.dataUrl}"><button data-i="${i}">×</button></div>`).join("")+`<button class="add-photo" id="addPhoto"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add</button>`;$("#addPhoto").addEventListener("click",()=>$("#photoInput").click());strip.querySelectorAll(".pv button").forEach(b=>b.addEventListener("click",()=>{formPhotos.splice(+b.dataset.i,1);renderPhotoStrip();}));}
+function svcRowHTML(s,i){return `<div class="svc-row"><div class="f"><span class="l">Date</span><span class="v num">${esc(fmtDate(s.date))||"—"}</span></div><div class="f"><span class="l">By</span><span class="v">${esc(s.by)||"—"}</span></div><div class="f"><span class="l">Cost</span><span class="v num">${s.cost!=null&&s.cost!==""?fmtMoney(s.cost):"—"}</span></div><div class="f"><span class="l">Work</span><span class="v">${esc(s.work)||"—"}</span></div>${s.accuracy?`<div class="f"><span class="l">Accuracy</span><span class="v num">${esc(s.accuracy)}</span></div>`:""}${i!=null?`<button class="del" data-i="${i}" title="Remove">×</button>`:""}</div>`;}
+function renderServiceLog(){const list=$("#serviceLogList");if(!list)return;
+  const sorted=formServiceLog.map((s,i)=>({...s,_i:i})).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  if(!sorted.length){list.innerHTML=`<div class="svc-empty">No service records yet — add one below.</div>`;return;}
+  list.innerHTML=sorted.map(s=>svcRowHTML(s,s._i)).join("");
+  list.querySelectorAll(".del").forEach(b=>b.addEventListener("click",()=>{formServiceLog.splice(+b.dataset.i,1);renderServiceLog();}));}
+function addServiceEntry(){const date=$("#svcDate").value,by=$("#svcBy").value.trim(),cost=$("#svcCost").value.trim(),work=$("#svcWork").value.trim(),accuracy=$("#svcAccuracy").value.trim();
+  if(!date&&!by&&!work){toast("Add at least a date, servicer, or work description.",true);return;}
+  formServiceLog.push({id:uuid(),date,by,cost:cost?num(cost):null,work,accuracy});
+  $("#svcDate").value="";$("#svcBy").value="";$("#svcCost").value="";$("#svcWork").value="";$("#svcAccuracy").value="";
+  renderServiceLog();}
+function openForm(asset){editingId=asset?asset.id:null;$("#formTitle").textContent=asset?"Edit watch":"Add watch";$("#pasteBox").value="";
+  formPhotos=asset&&asset.photos?asset.photos.map(p=>({...p})):[];
+  formServiceLog=asset&&asset.serviceHistory?asset.serviceHistory.map(s=>({...s})):[];
+  buildGrid($("#formGrid"),FIELDS_CORE);
+  const ps=document.createElement("div");ps.className="sec-label";ps.textContent="Photographs";$("#formGrid").appendChild(ps);
+  const pf=document.createElement("div");pf.className="field full";pf.innerHTML=`<label>Images — stored locally, embedded in the vault</label><div class="photo-strip" id="photoStrip"></div><input type="file" id="photoInput" accept="image/*" multiple style="display:none">`;$("#formGrid").appendChild(pf);
+  renderPhotoStrip();
+  buildGrid($("#formGridAdv"),FIELDS_ADV);
+  renderServiceLog();
+  $("#advancedWrap").style.display="none";$("#advToggle").textContent="+ Full detail — movement, aesthetics, provenance, financial, storage, insurance";
+  FIELDS_CORE.concat(FIELDS_ADV).forEach(f=>{if(f.k&&f.def!=null)setF(f.k,f.def);});
+  if(asset)FIELD_KEYS.forEach(k=>{if(asset[k]===undefined)return;let v=asset[k];if(k==="insured")v=(asset.insured===true||asset.insured==="Yes")?"Yes":"No";setF(k,v);});
+  $$("#formGrid .field,#formGridAdv .field").forEach(el=>el.classList.remove("filled"));
+  $("#menuScrim").classList.remove("on");$("#formScrim").classList.add("on");setTimeout(()=>$("#fld_maker")&&$("#fld_maker").focus(),40);}
+function collectForm(){const r={};FIELD_KEYS.forEach(k=>r[k]=getF(k));MONEY_KEYS.forEach(k=>{const n=num(r[k]);r[k]=n!=null?n:null;});r.warrantyYears=num(r.warrantyYears);r.insured=(r.insured==="Yes");r.photos=formPhotos.map(p=>({...p}));r.serviceHistory=formServiceLog.map(s=>({...s}));
+  if(r.serviceHistory.length){const newest=r.serviceHistory.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||""))[0];if(newest.date)r.lastService=newest.date;if(newest.by)r.serviceBy=newest.by;}
+  return r;}
+async function saveForm(again){const data=collectForm();if(!data.maker&&!data.model&&!data.reference){toast("Add at least a maker, model, or reference.",true);return;}
+  let rec;if(editingId){rec=ASSETS.find(a=>a.id===editingId);Object.assign(rec,data);rec.updatedAt=Date.now();}else{rec={id:uuid(),createdAt:Date.now(),updatedAt:Date.now(),...data};ASSETS.push(rec);}
+  await persistAsset(rec);renderReadout();renderTable();updateDbNote();toast(editingId?"Updated.":"Saved.");
+  if(again){editingId=null;openForm();}else{$("#formScrim").classList.remove("on");editingId=null;renderTable();}}
+function applyParse(){const p=parseListing($("#pasteBox").value);const ks=Object.keys(p);if(!ks.length){toast("No structured fields found in that text.",true);return;}let n=0;ks.forEach(k=>{const el=$("#fld_"+k);if(el&&!el.value.trim()){el.value=p[k];el.closest(".field").classList.add("filled");n++;}});toast(n?`Filled ${n} field${n!==1?"s":""} — review before saving.`:"Fields already filled; nothing overwritten.");}
+const readImage=file=>new Promise(res=>{const r=new FileReader();r.onload=()=>res({id:uuid(),name:file.name,dataUrl:r.result});r.readAsDataURL(file);});
+
+/* ── Owner ── */
+function openOwner(){buildGrid($("#ownerGrid"),OWNER_FIELDS);OWNER_FIELDS.forEach(f=>{if(f.k)setF(f.k,OWNER[f.k]);});$("#ownerScrim").classList.add("on");}
+async function saveOwner(){OWNER_FIELDS.forEach(f=>{if(f.k)OWNER[f.k]=getF(f.k);});await persistOwner();$("#ownerScrim").classList.remove("on");toast("Owner details saved.");}
+
+/* ── Persistence (mode-aware) ── */
+async function persistAsset(rec){if(MODE==="local"){await idbPut(rec);}else{markDirty();}}
+async function persistOwner(){if(MODE==="local"){await metaPut("owner",OWNER);}else{markDirty();}}
+async function removeAsset(id){ASSETS=ASSETS.filter(x=>x.id!==id);if(MODE==="local")await idbDel(id);else markDirty();}
+
+/* ── Import / export ── */
+function download(name,content){const blob=new Blob([content],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(url);a.remove();},100);}
+function bundle(){return{format:"ledger.register",v:2,exported:new Date().toISOString(),owner:OWNER,count:ASSETS.length,assets:ASSETS};}
+function exportPlain(){download(`watch-register-${today()}.json`,JSON.stringify(bundle(),null,2));toast("Plain JSON exported (unencrypted).",true);$("#menuScrim").classList.remove("on");}
+function exportEncrypted(){if(!cryptoAvailable()){toast("Encryption unavailable here — see How it works (use localhost).",true);return;}$("#menuScrim").classList.remove("on");
+  askPass({confirm:true,title:"Encrypt vault",msg:"Choose a passphrase. It wraps the master key that encrypts your whole register. Store it safely — there is no recovery.",onOk:async pass=>{try{const pkg=await seal(bundle(),pass);download(`watch-register-${today()}.vault.json`,JSON.stringify(pkg,null,2));dirty=false;renderLock();toast("Encrypted vault saved.");}catch(e){toast("Encryption failed: "+e.message,true);}}});}
+function importFlow(){$("#menuScrim").classList.remove("on");$("#fileInput").value="";$("#fileInput").click();}
+window.importFlow=importFlow;
+async function handleImportFile(file){const text=await file.text();let obj;try{obj=JSON.parse(text);}catch(e){toast("Not valid JSON.",true);return;}
+  if(obj&&obj.format==="ledger.vault"){if(!cryptoAvailable()){toast("Encrypted file, but crypto is unavailable here.",true);return;}
+    askPass({confirm:false,title:"Open vault",msg:"Enter the passphrase for this encrypted vault.",onOk:async pass=>{try{const b=await unseal(obj,pass);await ingest(b);toast("Vault opened.");}catch(e){toast("Wrong passphrase or corrupted file.",true);}}});}
+  else if(obj&&(obj.format==="ledger.register"||Array.isArray(obj.assets)))await ingest(obj);
+  else if(Array.isArray(obj))await ingest({assets:obj});
+  else toast("Unrecognized file format.",true);}
+async function ingest(b){const inc=(b.assets||[]).filter(x=>x&&typeof x==="object");if(!inc.length&&!b.owner){toast("No data found in that file.",true);return;}
+  confirmDlg(`Load ${inc.length} watch${inc.length!==1?"es":""}${b.owner?" + owner details":""}?`,"This replaces the current in-memory register (your files are untouched).",async()=>{
+    ASSETS=inc.map(a=>({...a,id:a.id||uuid()}));if(b.owner)OWNER={...OWNER_DEFAULT,...b.owner};
+    if(MODE==="local"){await idbClear();for(const a of ASSETS)await idbPut(a);await metaPut("owner",OWNER);dirty=false;}else{dirty=false;}
+    renderReadout();renderTable();renderLock();updateDbNote();toast(`Loaded ${inc.length} watch${inc.length!==1?"es":""}.`);});}
+
+/* ── Print ── */
+function ownerHead(kind){const o=OWNER;const now=new Date();
+  const line=[o.name,o.address].filter(Boolean).join(" · ");
+  const c2=[o.phone,o.email,o.dob?("DOB "+fmtDate(o.dob)):""].filter(Boolean).join(" · ");
+  return `<div class="pd-head"><div class="pd-mark">${esc(WORDMARK)} — Watch Collection</div><h1>${kind}</h1>
+    <div class="pd-owner"><b>${esc(o.name||"Owner")}</b><br>${esc(line)}${c2?"<br>"+esc(c2):""}</div>
+    <div class="pd-meta"><span>Prepared ${now.toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"})}</span><span>Confidential</span></div></div>`;}
+function printInsurance(){$("#menuScrim").classList.remove("on");
+  const rows=ASSETS.filter(isHeld).slice().sort((a,b)=>(num(b.scheduledValue)||num(b.marketValue)||0)-(num(a.scheduledValue)||num(a.marketValue)||0));
+  let tS=0,tM=0,under=0;
+  const trs=rows.map((a,i)=>{const s=num(a.scheduledValue),m=num(a.marketValue);if(s)tS+=s;if(m)tM+=m;const flag=(s!=null&&m!=null&&m>s);if(flag)under++;
+    return `<tr><td class="r">${i+1}</td><td>${esc([a.maker,a.model].filter(Boolean).join(" "))}</td><td>${esc(a.reference||"")}</td><td>${esc(a.serial||"—")}</td><td>${esc(a.condition||"")}</td><td class="r">${m!=null?fmtMoney(m):"—"}</td><td class="r ${flag?"pd-flag":""}">${s!=null?fmtMoney(s):"—"}${flag?" ▲":""}</td></tr>`;}).join("");
+  const doc=ownerHead("Scheduled Property — Insurance Inventory")+`<table class="pd-table"><thead><tr><th class="r">#</th><th>Article</th><th>Reference</th><th>Serial</th><th>Condition</th><th class="r">Market value</th><th class="r">Scheduled value</th></tr></thead><tbody>${trs}</tbody><tfoot><tr><td colspan="5">Totals (${rows.length} held)</td><td class="r">${fmtMoney(tM)}</td><td class="r">${fmtMoney(tS)}</td></tr></tfoot></table>`+(under>0?`<div class="pd-note"><b class="pd-flag">▲ ${under} item${under!==1?"s":""} flagged:</b> current market value exceeds scheduled (insured) value. Consider raising the rider to close the gap.</div>`:"")+`<div class="pd-note">Market figures are the owner's estimates, not formal appraisals. Serial numbers left blank were not recorded at time of preparation.</div><div class="pd-foot">Generated locally by ${esc(WORDMARK)} on ${new Date().toLocaleString()}. No data transmitted.</div>`;
+  $("#printDoc").innerHTML=doc;window.print();}
+function printEstate(){$("#menuScrim").classList.remove("on");
+  const g={};ASSETS.filter(isHeld).forEach(a=>{const key=a.disposition==="Heirloom"?("Heirloom — "+(a.heirloomTo||"Unassigned beneficiary")):(a.disposition||"Unassigned");(g[key]=g[key]||[]).push(a);});
+  const order=Object.keys(g).sort((a,b)=>(a.startsWith("Heirloom")?0:1)-(b.startsWith("Heirloom")?0:1)||a.localeCompare(b));
+  let body="";order.forEach(gr=>{body+=`<div class="estate-group-h">${esc(gr)} · ${g[gr].length} item${g[gr].length!==1?"s":""}</div>`;
+    g[gr].forEach(a=>{const grid=[["Reference",a.reference],["Serial",a.serial],["Movement",a.movement],["Case",[a.caseMaterial,a.caseSize].filter(Boolean).join(", ")],["Box & papers",a.boxPapers],["Limited edition",a.limitedEditionNumber],["Acquired via",a.acquisitionChannel],["Purchased",fmtDate(a.acquiredDate)],["Source",a.seller],["Market value",fmtMoney(a.marketValue)],["Scheduled value",fmtMoney(a.scheduledValue)]].filter(x=>x[1]).map(x=>`<dt>${esc(x[0])}</dt><dd>${esc(x[1])}</dd>`).join("");
+      body+=`<div class="estate-item"><h3>${esc([a.maker,a.model].filter(Boolean).join(" "))}</h3><div class="ei-sub">${esc(a.category||"")}${a.rotation?" · "+esc(a.rotation):""}</div><dl class="ei-grid">${grid}</dl>${a.provenance&&a.provenance.trim()?`<div style="margin-top:7px;font-size:10.5px"><b>Provenance.</b> ${esc(a.provenance)}</div>`:""}${a.notes&&a.notes.trim()?`<div style="margin-top:4px;font-size:10.5px;color:#555"><b>Notes.</b> ${esc(a.notes)}</div>`:""}</div>`;});});
+  const succ=OWNER.successionNotes||OWNER.executor||OWNER.passphraseCustody;
+  const succBlock=succ?`<div class="estate-group-h">Succession</div><div style="font-size:10.5px;line-height:1.6">${OWNER.executor?`<div><b>Executor / attorney:</b> ${esc(OWNER.executor)}</div>`:""}${OWNER.altName?`<div><b>Alternate contact:</b> ${esc(OWNER.altName)}${OWNER.altRelation?" ("+esc(OWNER.altRelation)+")":""}${OWNER.altPhone?" · "+esc(OWNER.altPhone):""}</div>`:""}${OWNER.passphraseCustody?`<div><b>Vault key custody:</b> ${esc(OWNER.passphraseCustody)}</div>`:""}${OWNER.successionNotes?`<div style="margin-top:6px">${esc(OWNER.successionNotes)}</div>`:""}</div>`:"";
+  const doc=ownerHead("Estate Register — Disposition &amp; Provenance")+`<div class="pd-note" style="margin-top:0;margin-bottom:10px">Prepared for estate and beneficiary reference, grouped by designated tier and beneficiary.</div>`+body+succBlock+`<div class="pd-foot">Generated locally by ${esc(WORDMARK)} on ${new Date().toLocaleString()}. A personal record, not a legal instrument.</div>`;
+  $("#printDoc").innerHTML=doc;window.print();}
+
+/* ── Dialogs ── */
+let pwState=null;
+function askPass({confirm,title,msg,onOk}){pwState={confirm,onOk};$("#pwTitle").textContent=title;$("#pwMsg").textContent=msg;$("#pwInput").value="";$("#pwInput2").value="";$("#pwInput2").style.display=confirm?"block":"none";$("#pwNote").style.display=confirm?"block":"none";$("#pwNote").textContent="There is no recovery. Lose this passphrase and the vault cannot be opened — by anyone. Store a sealed copy per Succession & recovery.";$("#pwScrim").classList.add("on");setTimeout(()=>$("#pwInput").focus(),40);}
+function pwSubmit(){const p=$("#pwInput").value;if(!p){toast("Enter a passphrase.",true);return;}if(pwState.confirm){if(p!==$("#pwInput2").value){toast("Passphrases don't match.",true);return;}if(p.length<8){toast("Use at least 8 characters.",true);return;}}const cb=pwState.onOk;$("#pwScrim").classList.remove("on");pwState=null;cb(p);}
+let confCb=null;
+function confirmDlg(title,msg,cb){$("#confTitle").textContent=title;$("#confMsg").textContent=msg;confCb=cb;$("#confScrim").classList.add("on");}
+
+/* ── Mode ── */
+function setMode(m,fromInit){if(m===MODE&&!fromInit)return;
+  if(m==="vault"&&MODE==="local"){confirmDlg("Switch to Vault-only?","Your collection stays loaded in memory but the local browser database will be cleared, so nothing plaintext is left on this machine. Export an encrypted vault first if you haven't. Changes after this won't persist until you save a vault.",async()=>{await idbClear();MODE="vault";dirty=true;applyMode();toast("Vault-only mode. Save an encrypted vault before closing.");});return;}
+  if(m==="local"&&MODE==="vault"){(async()=>{MODE="local";for(const a of ASSETS)await idbPut(a);await metaPut("owner",OWNER);applyMode();})();return;}
+  MODE=m;applyMode(fromInit);}
+function applyMode(fromInit){$$("#modeSeg button").forEach(b=>b.classList.toggle("on",b.dataset.mode===MODE));
+  $("#modeDesc").textContent=MODE==="vault"?"in memory only · nothing written to this machine":"persists in this browser's database";
+  if(MODE==="local"&&!fromInit){metaPut("mode","local");}else if(MODE==="vault"){try{localStorage.removeItem("x");}catch(e){}}
+  try{localStorage.setItem("wr_mode",MODE);}catch(e){}
+  renderLock();updateDbNote();}
+
+/* ── misc ── */
+function clearFilters(){ui.q="";ui.cat="";ui.rot="";ui.disp="";ui.cover="";ui.status="";$("#search").value="";["fCat","fRot","fDisp","fCover","fStatus"].forEach(id=>$("#"+id).value="");renderTable();}
+window.clearFilters=clearFilters;window.openForm=openForm;
+function deleteAsset(id){const a=ASSETS.find(x=>x.id===id);if(!a)return;confirmDlg("Remove this watch?",`“${[a.maker,a.model].filter(Boolean).join(" ")||"Untitled"}” will be removed. Export a backup first if unsure.`,async()=>{await removeAsset(id);closeDrawer();renderReadout();renderTable();updateDbNote();toast("Removed.");});}
+function updateDbNote(){$("#dbNote").textContent=MODE==="vault"?(ASSETS.length+" in memory · no local trace"):(ASSETS.length+" record"+(ASSETS.length!==1?"s":"")+" · local DB");}
+
+/* ── Wiring ── */
+function wire(){
+  $("#wordmark").innerHTML=WORDMARK==="REGISTER"?"RE<b>GISTER</b>":esc(WORDMARK);
+  $("#btnAdd").addEventListener("click",()=>openForm());
+  $("#btnOwner").addEventListener("click",openOwner);
+  $("#btnMenu").addEventListener("click",()=>$("#menuScrim").classList.add("on"));
+  $("#menuClose").addEventListener("click",()=>$("#menuScrim").classList.remove("on"));
+  $("#search").addEventListener("input",e=>{ui.q=e.target.value;renderTable();});
+  $("#fCat").addEventListener("change",e=>{ui.cat=e.target.value;renderTable();});
+  $("#fRot").addEventListener("change",e=>{ui.rot=e.target.value;renderTable();});
+  $("#fDisp").addEventListener("change",e=>{ui.disp=e.target.value;renderTable();});
+  $("#fCover").addEventListener("change",e=>{ui.cover=e.target.value;renderTable();});
+  $("#fStatus").addEventListener("change",e=>{ui.status=e.target.value;renderTable();});
+  $("#scrim").addEventListener("click",()=>closeDrawer());
+  $("#dClose").addEventListener("click",()=>closeDrawer());
+  $("#dEdit").addEventListener("click",()=>{const a=ASSETS.find(x=>x.id===editingId);if(a){closeDrawer(false);openForm(a);}});
+  $("#dDelete").addEventListener("click",()=>{if(editingId)deleteAsset(editingId);});
+  $("#formClose").addEventListener("click",()=>$("#formScrim").classList.remove("on"));
+  $("#formCancel").addEventListener("click",()=>$("#formScrim").classList.remove("on"));
+  $("#formSave").addEventListener("click",()=>saveForm(false));
+  $("#formSaveNew").addEventListener("click",()=>saveForm(true));
+  $("#parseBtn").addEventListener("click",applyParse);
+  $("#advToggle").addEventListener("click",()=>{const wrap=$("#advancedWrap");const open=wrap.style.display!=="none";wrap.style.display=open?"none":"block";$("#advToggle").textContent=open?"+ Full detail — movement, aesthetics, provenance, financial, storage, insurance":"− Hide full detail";});
+  $("#svcAddBtn").addEventListener("click",addServiceEntry);
+  document.addEventListener("change",async e=>{if(e.target&&e.target.id==="photoInput"){const fs=Array.from(e.target.files||[]);for(const f of fs)formPhotos.push(await readImage(f));renderPhotoStrip();e.target.value="";}});
+  $("#ownerClose").addEventListener("click",()=>$("#ownerScrim").classList.remove("on"));
+  $("#ownerSave").addEventListener("click",saveOwner);
+  $("#ownerSucc").addEventListener("click",()=>{$("#ownerScrim").classList.remove("on");$("#succScrim").classList.add("on");});
+  $("#mExpEnc").addEventListener("click",exportEncrypted);
+  $("#mExpPlain").addEventListener("click",exportPlain);
+  $("#mImport").addEventListener("click",importFlow);
+  $("#fileInput").addEventListener("change",e=>{if(e.target.files[0])handleImportFile(e.target.files[0]);});
+  $("#mPrintIns").addEventListener("click",printInsurance);
+  $("#mPrintEst").addEventListener("click",printEstate);
+  $("#mWipe").addEventListener("click",()=>{$("#menuScrim").classList.remove("on");confirmDlg("Erase local database?","Clears the register from this browser. Exported vault files are untouched. Cannot be undone.",async()=>{await idbClear();ASSETS=[];OWNER={...OWNER_DEFAULT};renderReadout();renderTable();updateDbNote();toast("Local database erased.",true);});});
+  $("#pwOk").addEventListener("click",pwSubmit);
+  $("#pwCancel").addEventListener("click",()=>{$("#pwScrim").classList.remove("on");pwState=null;});
+  $("#pwClose").addEventListener("click",()=>{$("#pwScrim").classList.remove("on");pwState=null;});
+  $("#pwInput").addEventListener("keydown",e=>{if(e.key==="Enter"){if(pwState&&pwState.confirm)$("#pwInput2").focus();else pwSubmit();}});
+  $("#pwInput2").addEventListener("keydown",e=>{if(e.key==="Enter")pwSubmit();});
+  $("#confOk").addEventListener("click",()=>{const cb=confCb;$("#confScrim").classList.remove("on");confCb=null;if(cb)cb();});
+  $("#confCancel").addEventListener("click",()=>{$("#confScrim").classList.remove("on");confCb=null;});
+  $("#lnkHelp").addEventListener("click",()=>$("#helpScrim").classList.add("on"));
+  $("#helpClose").addEventListener("click",()=>$("#helpScrim").classList.remove("on"));
+  $("#helpOk").addEventListener("click",()=>$("#helpScrim").classList.remove("on"));
+  $("#lnkSucc").addEventListener("click",()=>$("#succScrim").classList.add("on"));
+  $("#succClose").addEventListener("click",()=>$("#succScrim").classList.remove("on"));
+  $("#succOk").addEventListener("click",()=>$("#succScrim").classList.remove("on"));
+  $("#bannerX").addEventListener("click",()=>{$("#banner").style.display="none";try{localStorage.setItem("wr_banner","hid");}catch(e){}});
+  $("#bannerExport").addEventListener("click",exportEncrypted);
+  $$("#modeSeg button").forEach(b=>b.addEventListener("click",()=>setMode(b.dataset.mode)));
+  document.addEventListener("keydown",e=>{if(e.key==="Escape"){for(const id of ["#succScrim","#helpScrim","#confScrim","#pwScrim","#menuScrim","#ownerScrim","#formScrim"]){if($(id).classList.contains("on")){$(id).classList.remove("on");return;}}if($("#drawer").classList.contains("on"))closeDrawer();}});
+  window.addEventListener("beforeunload",e=>{if(MODE==="vault"&&dirty){e.preventDefault();e.returnValue="";}});
+  const fc=$("#fCat");CATEGORIES.forEach(c=>{const o=document.createElement("option");o.value=c;o.textContent=c;fc.appendChild(o);});
+  const fr=$("#fRot");ROTATIONS.forEach(c=>{const o=document.createElement("option");o.value=c;o.textContent=c;fr.appendChild(o);});
+}
+
+/* ── Init ── */
+(async function init(){
+  wire();
+  if(!cryptoAvailable())toast("Encrypted vaults need a secure context — see How it works.",true);
+  let savedMode=null;try{savedMode=localStorage.getItem("wr_mode");}catch(e){}
+  try{_db=await openDB();}catch(e){toast("Local database unavailable; file import/export still works.",true);}
+  MODE=(savedMode==="vault")?"vault":"local";
+  if(MODE==="local"&&_db){
+    ASSETS=await idbAll();
+    const savedOwner=await metaGet("owner");if(savedOwner)OWNER={...OWNER_DEFAULT,...savedOwner};
+    const seeded=await metaGet("seeded");
+    if(ASSETS.length===0&&!seeded){
+      ASSETS=SEED_DATA.map(a=>({...a,createdAt:Date.now()}));
+      for(const a of ASSETS)await idbPut(a);
+      await metaPut("owner",OWNER);await metaPut("seeded",true);
+      let hid=null;try{hid=localStorage.getItem("wr_banner");}catch(e){}
+      if(hid!=="hid"&&SEED_DATA.length>0)$("#banner").style.display="flex";
+    }
+  }else{ASSETS=[];}
+  applyMode(true);renderReadout();renderTable();updateDbNote();renderLock();
+})();
+</script>
+</body>
+</html>

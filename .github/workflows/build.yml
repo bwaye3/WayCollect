@@ -1,0 +1,69 @@
+name: Build desktop app
+
+# Everything here runs on GitHub's own servers. Nothing is compiled on your
+# machine -- that's the whole point.
+#
+# Trigger:
+#   - Push a version tag (e.g. `git tag v0.1.0 && git push origin v0.1.0`)
+#     builds macOS (Apple Silicon + Intel) and Windows, and creates a DRAFT
+#     GitHub Release with the installers attached. Drafts are private to you
+#     until you publish them -- review and download from the Releases tab,
+#     then either publish or delete.
+#   - "Run workflow" from the Actions tab does the same thing manually,
+#     useful for testing before you're ready to tag a real version.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: "macos-latest"   # Apple Silicon (M1 and later)
+            args: "--target aarch64-apple-darwin"
+          - platform: "macos-latest"   # Intel Macs
+            args: "--target x86_64-apple-darwin"
+          - platform: "windows-latest"
+            args: ""
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+          cache: "npm"
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Rust build cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install project dependencies
+        run: npm install
+
+      - name: Build the app
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Watch Register ${{ github.ref_name }}"
+          releaseBody: "Unsigned build -- see README for the first-launch step on macOS and Windows."
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}

@@ -1,0 +1,12 @@
+{
+  "name": "watch-register",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first, air-gapped asset & provenance register",
+  "scripts": {
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

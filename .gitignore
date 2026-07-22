@@ -1,0 +1,20 @@
+# ── Your data. Never commit this, encrypted or not. ─────────────────
+# Vault exports, plain JSON exports, anything that looks like collection data.
+*.vault.json
+watch-register-*.json
+!package.json
+!package-lock.json
+/data/
+/vault/
+
+# ── Rust / Tauri build output ────────────────────────────────────────
+/src-tauri/target/
+/src-tauri/gen/
+
+# ── Node ──────────────────────────────────────────────────────────────
+/node_modules/
+npm-debug.log*
+
+# ── OS junk ───────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
