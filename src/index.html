@@ -269,6 +269,42 @@
     .pd-foot{margin-top:22px;padding-top:10px;border-top:1px solid #999;font-family:Arial,Helvetica,sans-serif;font-size:8.5px;color:#666}
     @page{margin:18mm 14mm;size:A4}
   }
+
+  /* ── Utility classes ──────────────────────────────────────────────────
+     These exist because inline style="" attributes DO NOT WORK in the
+     packaged app. Tauri injects a nonce into style-src, and per the CSP
+     spec a nonce makes 'unsafe-inline' inert — so the browser parses the
+     style attribute, keeps it in the DOM, and applies none of it. In the
+     browser (no nonce) it silently works, which is why this only ever
+     showed up in the native build: unsized <img> thumbs blew rows up to
+     full size and display:none elements rendered.
+     Anything that must actually apply belongs here, not in an attribute.
+     Declared last so these win the ties inline styles used to win.
+     Note: JS `el.style.x = ...` is CSSOM, not an attribute, and is NOT
+     affected — the show/hide toggles still work. */
+  .u-hide{display:none}
+  .u-muted2{color:var(--muted-2)}
+  .u-brass{color:var(--brass)}
+  .u-mt0{margin-top:0}
+  .u-mt2{margin-top:2px}
+  .u-mt6{margin-top:6px}
+  .u-mt7{margin-top:7px}
+  .u-mt10{margin-top:10px}
+  .u-mt18{margin-top:18px}
+  .u-mbn2{margin-bottom:-2px}
+  .u-mb10{margin-bottom:10px}
+  .u-ml6{margin-left:6px}
+  .u-pl14{padding-left:14px}
+  .u-row8{display:flex;gap:8px}
+  .u-col10{display:flex;flex-direction:column;gap:10px}
+  .u-f11{font-size:11px}
+  .u-f12{font-size:12px}
+  .u-f105{font-size:10.5px}
+  .u-lh17{line-height:1.7}
+  .thumb{width:34px;height:34px;border-radius:2px;object-fit:cover;border:1px solid var(--line-2)}
+  .thumb-empty{width:34px;height:34px;border-radius:2px;border:1px dashed var(--line-2);display:flex;align-items:center;justify-content:center;color:var(--muted-2);font-size:9px;font-family:var(--mono)}
+  .pd-fine{margin-top:4px;font-size:10.5px;color:#555}
+  .pd-succ{font-size:10.5px;line-height:1.6}
 </style>
 </head>
 <body>
@@ -286,7 +322,7 @@
   </header>
 
   <div class="subbar">
-    <span class="eyebrow" style="color:var(--muted-2)">Storage</span>
+    <span class="eyebrow u-muted2">Storage</span>
     <div class="seg" id="modeSeg">
       <button data-mode="local" class="on">Local database</button>
       <button data-mode="vault">Vault-only</button>
@@ -295,7 +331,7 @@
     <span class="lock" id="lockState"><span class="dot"></span><span id="lockText">saved</span></span>
   </div>
 
-  <div class="banner" id="banner" style="display:none">
+  <div class="banner u-hide" id="banner">
     <svg viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
     <div class="txt"><b>Your collection is loaded in the clear.</b> This starter file holds your data as plaintext for setup. Set a passphrase and export an encrypted vault now — then keep the vault, and for USB use switch to <b>Vault-only</b> so nothing is left on this machine.</div>
     <div class="acts"><button class="btn sm primary" id="bannerExport">Export encrypted vault</button></div>
@@ -348,9 +384,9 @@
     <div class="grid" id="formGrid"></div>
 
     <div class="adv-toggle-row"><button class="btn ghost sm" id="advToggle" type="button">+ Full detail — movement, aesthetics, provenance, financial, storage, insurance</button></div>
-    <div id="advancedWrap" style="display:none">
+    <div id="advancedWrap" class="u-hide">
       <div class="grid" id="formGridAdv"></div>
-      <div class="sec-label" style="margin-top:2px">Service history</div>
+      <div class="sec-label u-mt2">Service history</div>
       <div class="service-log" id="serviceLogList"></div>
       <div class="svc-add">
         <input id="svcDate" type="date" title="Date">
@@ -363,38 +399,38 @@
     </div>
   </div>
   <div class="modal-foot"><button class="btn ghost" id="formCancel">Cancel</button>
-    <div style="display:flex;gap:8px"><button class="btn" id="formSaveNew">Save &amp; add another</button><button class="btn primary" id="formSave">Save watch</button></div></div>
+    <div class="u-row8"><button class="btn" id="formSaveNew">Save &amp; add another</button><button class="btn primary" id="formSave">Save watch</button></div></div>
 </div></div>
 
 <!-- owner -->
 <div class="modal-scrim" id="ownerScrim"><div class="modal">
   <div class="modal-head"><h3>Owner &amp; succession</h3><button class="x" id="ownerClose"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
   <div class="modal-body">
-    <p class="dialog-text" style="margin-top:0">Who this register belongs to, and who may act on it. Stored inside the encrypted vault and printed on the insurance schedule and estate register. <b>Do not put your passphrase here</b> — see Succession &amp; recovery for why, and where it should go instead.</p>
-    <div class="grid" id="ownerGrid" style="margin-top:18px"></div>
+    <p class="dialog-text u-mt0">Who this register belongs to, and who may act on it. Stored inside the encrypted vault and printed on the insurance schedule and estate register. <b>Do not put your passphrase here</b> — see Succession &amp; recovery for why, and where it should go instead.</p>
+    <div class="grid u-mt18" id="ownerGrid"></div>
   </div>
-  <div class="modal-foot"><a id="ownerSucc" style="font-size:12px">Read: succession &amp; recovery →</a><button class="btn primary" id="ownerSave">Save owner details</button></div>
+  <div class="modal-foot"><a id="ownerSucc" class="u-f12">Read: succession &amp; recovery →</a><button class="btn primary" id="ownerSave">Save owner details</button></div>
 </div></div>
 
 <!-- data menu -->
 <div class="modal-scrim" id="menuScrim"><div class="modal narrow">
   <div class="modal-head"><h3>Vault, backup &amp; print</h3><button class="x" id="menuClose"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
-  <div class="modal-body" style="display:flex;flex-direction:column;gap:10px">
-    <div class="eyebrow" style="margin-bottom:-2px">Encrypted vault</div>
+  <div class="modal-body u-col10">
+    <div class="eyebrow u-mbn2">Encrypted vault</div>
     <button class="btn" id="mExpEnc"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg> Save encrypted vault (.vault.json)</button>
     <button class="btn" id="mImport"><svg viewBox="0 0 24 24"><path d="M12 21V9m0 0l-4 4m4-4l4 4M5 3h14"/></svg> Open / import backup</button>
     <button class="btn" id="mImportCsv"><svg viewBox="0 0 24 24"><path d="M12 21V9m0 0l-4 4m4-4l4 4M5 3h14"/></svg> Import from CSV</button>
-    <div class="eyebrow" style="margin-top:10px;margin-bottom:-2px">Plain (unencrypted)</div>
+    <div class="eyebrow u-mt10 u-mbn2">Plain (unencrypted)</div>
     <button class="btn ghost" id="mExpPlain"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg> Export plain JSON</button>
-    <div class="eyebrow" style="margin-top:10px;margin-bottom:-2px">Documents — print or Save as PDF</div>
+    <div class="eyebrow u-mt10 u-mbn2">Documents — print or Save as PDF</div>
     <button class="btn" id="mPrintIns"><svg viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 18H4v-6h16v6h-2M8 14h8v6H8z"/></svg> Insurance schedule</button>
     <button class="btn" id="mPrintEst"><svg viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 18H4v-6h16v6h-2M8 14h8v6H8z"/></svg> Estate register</button>
-    <div class="eyebrow" style="margin-top:10px;margin-bottom:-2px">Danger zone</div>
+    <div class="eyebrow u-mt10 u-mbn2">Danger zone</div>
     <button class="btn danger ghost" id="mWipe"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg> Erase local database</button>
-    <input type="file" id="fileInput" accept=".json,application/json" style="display:none">
-    <input type="file" id="csvFileInput" accept=".csv,text/csv" style="display:none">
+    <input type="file" id="fileInput" accept=".json,application/json" class="u-hide">
+    <input type="file" id="csvFileInput" accept=".csv,text/csv" class="u-hide">
   </div>
-  <div class="modal-foot"><span class="dialog-text" style="font-size:11px">The encrypted vault is what you truly own. In Vault-only mode, save it before closing or changes are lost.</span></div>
+  <div class="modal-foot"><span class="dialog-text u-f11">The encrypted vault is what you truly own. In Vault-only mode, save it before closing or changes are lost.</span></div>
 </div></div>
 
 <!-- passphrase -->
@@ -402,7 +438,7 @@
   <div class="modal-head"><h3 id="pwTitle">Passphrase</h3><button class="x" id="pwClose"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
   <div class="modal-body"><p class="dialog-text" id="pwMsg"></p>
     <input type="password" class="pw-input" id="pwInput" placeholder="Passphrase" autocomplete="off">
-    <input type="password" class="pw-input" id="pwInput2" placeholder="Confirm passphrase" autocomplete="off" style="display:none">
+    <input type="password" class="pw-input u-hide" id="pwInput2" placeholder="Confirm passphrase" autocomplete="off">
     <div class="pw-note" id="pwNote"></div></div>
   <div class="modal-foot"><button class="btn ghost" id="pwCancel">Cancel</button><button class="btn primary" id="pwOk">Continue</button></div>
 </div></div>
@@ -417,12 +453,12 @@
 <!-- help -->
 <div class="modal-scrim" id="helpScrim"><div class="modal">
   <div class="modal-head"><h3>How it works</h3><button class="x" id="helpClose"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
-  <div class="modal-body dialog-text" style="line-height:1.7">
+  <div class="modal-body dialog-text u-lh17">
     <p><b>Nothing leaves this machine.</b> No servers, no accounts, no telemetry, no network calls of any kind.</p>
     <p><b>Two storage modes.</b> <b>Local database</b> keeps your collection in this browser's store (convenient, but plaintext on this host). <b>Vault-only</b> writes nothing to the browser — data lives in memory, you open and save encrypted <span class="num">.vault</span> files, and closing the tab leaves no trace. Vault-only is the mode for running from a USB stick on a machine you don't want to leave data on.</p>
     <p><b>Encryption.</b> Encrypted vaults use AES-256-GCM. A random master key encrypts the data; your passphrase only wraps that master key (PBKDF2, 250,000 rounds). No third-party crypto. There is no backdoor and <b>no password reset</b> — lose the passphrase and the vault is unrecoverable by anyone.</p>
     <p><b>Shard-ready by design.</b> Because the passphrase wraps a master key rather than encrypting the data directly, that master key is a single secret that can later be split with Shamir's Secret Sharing (e.g. any 3 of 5 shares reconstruct it) for inheritance — without re-encrypting anything. That layer isn't built yet; the format is prepared for it.</p>
-    <p><b>If encryption is unavailable</b> over <span class="num">file://</span>, serve from localhost: <span class="num" style="color:var(--brass)">python3 -m http.server 8080</span> → <span class="num">http://localhost:8080/</span>. Still fully offline.</p>
+    <p><b>If encryption is unavailable</b> over <span class="num">file://</span>, serve from localhost: <span class="num u-brass">python3 -m http.server 8080</span> → <span class="num">http://localhost:8080/</span>. Still fully offline.</p>
     <p><b>Documents.</b> The insurance schedule and estate register open the print dialog — choose <b>Save as PDF</b>. The insurance schedule flags every watch whose market value exceeds its scheduled (insured) value.</p>
   </div>
   <div class="modal-foot"><span></span><button class="btn primary" id="helpOk">Got it</button></div>
@@ -431,12 +467,12 @@
 <!-- succession -->
 <div class="modal-scrim" id="succScrim"><div class="modal">
   <div class="modal-head"><h3>Succession &amp; recovery</h3><button class="x" id="succClose"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
-  <div class="modal-body dialog-text" style="line-height:1.7">
+  <div class="modal-body dialog-text u-lh17">
     <p><b>The honest version first:</b> there is no "reset password by email." That isn't an oversight — it's the security. An email reset is a backdoor, and a backdoor is exactly what an air-gapped encrypted vault exists to avoid. Any mechanism that could let <i>you</i> back in without the passphrase could let someone else in too. So the recovery question isn't "how does the app let heirs in" — the app can't and shouldn't. It's <b>"where does a copy of the key live, and who is trusted to hold it."</b></p>
     <p><b>The right mechanism for one person's collection</b> is custody, not code:</p>
-    <p style="padding-left:14px">— Write the passphrase on paper. Seal it. Place it where your estate is settled: a <b>safe-deposit box</b>, or with your <b>estate attorney</b>, or in a fireproof home safe your executor can reach. Reference its existence and location in your <b>will</b> (never write the passphrase itself in the will — wills become public record in probate).</p>
-    <p style="padding-left:14px">— Keep a copy of an <b>encrypted vault export</b> with that sealed passphrase, plus a copy of this app file, so an heir has the data, the key, and the tool together.</p>
-    <p style="padding-left:14px">— Fill in the <b>Owner &amp; succession</b> panel: your executor and alternate contact, and a note describing where the sealed passphrase is held (the note, not the passphrase). That travels inside the encrypted vault.</p>
+    <p class="u-pl14">— Write the passphrase on paper. Seal it. Place it where your estate is settled: a <b>safe-deposit box</b>, or with your <b>estate attorney</b>, or in a fireproof home safe your executor can reach. Reference its existence and location in your <b>will</b> (never write the passphrase itself in the will — wills become public record in probate).</p>
+    <p class="u-pl14">— Keep a copy of an <b>encrypted vault export</b> with that sealed passphrase, plus a copy of this app file, so an heir has the data, the key, and the tool together.</p>
+    <p class="u-pl14">— Fill in the <b>Owner &amp; succession</b> panel: your executor and alternate contact, and a note describing where the sealed passphrase is held (the note, not the passphrase). That travels inside the encrypted vault.</p>
     <p><b>The stronger mechanism, when you want it (the "sharded" option):</b> split the key with Shamir's Secret Sharing — say 5 shares where any 3 reconstruct it — and hand shares to your executor, a trusted child, and your attorney. No single person can open the vault alone or be coerced into it, losing one share doesn't lock anyone out, and after your death the fiduciaries jointly reconstruct. This is how serious crypto custody handles inheritance. The vault format here is already built for it; the splitting tool is the next piece to add when you decide you want it.</p>
     <p><b>What protects you while you're alive</b> is not app cleverness: turn on <b>full-disk encryption</b> (FileVault / BitLocker), keep the vault and its passphrase in different places, and in Vault-only mode nothing plaintext is left behind on the host at all.</p>
   </div>
@@ -669,13 +705,13 @@ function renderTable(){const rows=currentRows();
   if(rows.length===0){wrap.innerHTML=`<div class="empty"><h2>No matches</h2><p>Nothing fits the current filters.</p><div class="row"><button class="btn" onclick="clearFilters()">Clear filters</button></div></div>`;return;}
   const thead=COLS.map(c=>{const ar=(ui.sortKey===c.k)?`<span class="arw">${ui.sortDir>0?"▲":"▼"}</span>`:"";return `<th class="${c.cls||""}${c.sort?"":" no-sort"}" ${c.sort?`data-sort="${c.k}"`:""}>${esc(c.label)}${ar}</th>`;}).join("");
   const body=rows.map(a=>{const cov=coverageState(a);
-    const covCell=cov==="sold"?`<span class="num" style="color:var(--muted-2);font-size:11px">sold</span>`:
-      (cov==="under"?`<span class="dot warn"></span><span class="num gap-up" style="font-size:11px">Under ${fmtMoney(num(a.marketValue)-num(a.scheduledValue))}</span>`:
-       cov==="ok"?`<span class="dot ok"></span><span class="num" style="font-size:11px">OK</span>`:
-       `<span class="dot na"></span><span class="num" style="font-size:11px;color:var(--muted-2)">—</span>`);
-    const thumb=(a.photos&&a.photos[0]&&a.photos[0].thumbUrl)?`<img class="thumb" style="width:34px;height:34px;border-radius:2px;object-fit:cover;border:1px solid var(--line-2)" src="${a.photos[0].thumbUrl}">`:`<div style="width:34px;height:34px;border-radius:2px;border:1px dashed var(--line-2);display:flex;align-items:center;justify-content:center;color:var(--muted-2);font-size:9px;font-family:var(--mono)">—</div>`;
+    const covCell=cov==="sold"?`<span class="num u-muted2 u-f11">sold</span>`:
+      (cov==="under"?`<span class="dot warn"></span><span class="num gap-up u-f11">Under ${fmtMoney(num(a.marketValue)-num(a.scheduledValue))}</span>`:
+       cov==="ok"?`<span class="dot ok"></span><span class="num u-f11">OK</span>`:
+       `<span class="dot na"></span><span class="num u-f11 u-muted2">—</span>`);
+    const thumb=(a.photos&&a.photos[0]&&a.photos[0].thumbUrl)?`<img class="thumb" src="${a.photos[0].thumbUrl}">`:`<div class="thumb-empty">—</div>`;
     const disp=a.disposition==="Heirloom"?`<span class="chip heir">Heirloom${a.heirloomTo?" · "+esc(a.heirloomTo):""}</span>`:a.disposition==="Tool-tier"?`<span class="chip">Tool-tier</span>`:"";
-    const rat=a.rating&&a.rating!=="Hold"?`<span class="chip ${a.rating==="Sell"?"sell":""}" style="margin-left:6px">${esc(a.rating)}</span>`:"";
+    const rat=a.rating&&a.rating!=="Hold"?`<span class="chip u-ml6 ${a.rating==="Sell"?"sell":""}">${esc(a.rating)}</span>`:"";
     return `<tr data-id="${a.id}" class="${a.id===editingId?"sel":""} ${isHeld(a)?"":"sold"}">
       <td>${thumb}</td>
       <td><div class="cell-obj"><span class="m">${esc(a.maker||"—")} ${esc(a.model||"")}</span><span class="s">${esc([a.rotation,a.caseSize,a.condition].filter(Boolean).join(" · "))}</span></div></td>
@@ -749,7 +785,7 @@ function openForm(asset){editingId=asset?asset.id:null;$("#formTitle").textConte
   formServiceLog=asset&&asset.serviceHistory?asset.serviceHistory.map(s=>({...s})):[];
   buildGrid($("#formGrid"),FIELDS_CORE);
   const ps=document.createElement("div");ps.className="sec-label";ps.textContent="Photographs";$("#formGrid").appendChild(ps);
-  const pf=document.createElement("div");pf.className="field full";pf.innerHTML=`<label>Images — stored locally, embedded in the vault</label><div class="photo-strip" id="photoStrip"></div><input type="file" id="photoInput" accept="image/*" multiple style="display:none">`;$("#formGrid").appendChild(pf);
+  const pf=document.createElement("div");pf.className="field full";pf.innerHTML=`<label>Images — stored locally, embedded in the vault</label><div class="photo-strip" id="photoStrip"></div><input type="file" id="photoInput" accept="image/*" multiple class="u-hide">`;$("#formGrid").appendChild(pf);
   renderPhotoStrip();
   buildGrid($("#formGridAdv"),FIELDS_ADV);
   renderServiceLog();
@@ -949,10 +985,10 @@ function printEstate(){$("#menuScrim").classList.remove("on");
   const order=Object.keys(g).sort((a,b)=>(a.startsWith("Heirloom")?0:1)-(b.startsWith("Heirloom")?0:1)||a.localeCompare(b));
   let body="";order.forEach(gr=>{body+=`<div class="estate-group-h">${esc(gr)} · ${g[gr].length} item${g[gr].length!==1?"s":""}</div>`;
     g[gr].forEach(a=>{const grid=[["Reference",a.reference],["Serial",a.serial],["Movement",a.movement],["Case",[a.caseMaterial,a.caseSize].filter(Boolean).join(", ")],["Box & papers",a.boxPapers],["Limited edition",a.limitedEditionNumber],["Acquired via",a.acquisitionChannel],["Purchased",fmtDate(a.acquiredDate)],["Source",a.seller],["Market value",fmtMoney(a.marketValue)],["Scheduled value",fmtMoney(a.scheduledValue)]].filter(x=>x[1]).map(x=>`<dt>${esc(x[0])}</dt><dd>${esc(x[1])}</dd>`).join("");
-      body+=`<div class="estate-item"><h3>${esc([a.maker,a.model].filter(Boolean).join(" "))}</h3><div class="ei-sub">${esc(a.category||"")}${a.rotation?" · "+esc(a.rotation):""}</div><dl class="ei-grid">${grid}</dl>${a.provenance&&a.provenance.trim()?`<div style="margin-top:7px;font-size:10.5px"><b>Provenance.</b> ${esc(a.provenance)}</div>`:""}${a.notes&&a.notes.trim()?`<div style="margin-top:4px;font-size:10.5px;color:#555"><b>Notes.</b> ${esc(a.notes)}</div>`:""}</div>`;});});
+      body+=`<div class="estate-item"><h3>${esc([a.maker,a.model].filter(Boolean).join(" "))}</h3><div class="ei-sub">${esc(a.category||"")}${a.rotation?" · "+esc(a.rotation):""}</div><dl class="ei-grid">${grid}</dl>${a.provenance&&a.provenance.trim()?`<div class="u-mt7 u-f105"><b>Provenance.</b> ${esc(a.provenance)}</div>`:""}${a.notes&&a.notes.trim()?`<div class="pd-fine"><b>Notes.</b> ${esc(a.notes)}</div>`:""}</div>`;});});
   const succ=OWNER.successionNotes||OWNER.executor||OWNER.passphraseCustody;
-  const succBlock=succ?`<div class="estate-group-h">Succession</div><div style="font-size:10.5px;line-height:1.6">${OWNER.executor?`<div><b>Executor / attorney:</b> ${esc(OWNER.executor)}</div>`:""}${OWNER.altName?`<div><b>Alternate contact:</b> ${esc(OWNER.altName)}${OWNER.altRelation?" ("+esc(OWNER.altRelation)+")":""}${OWNER.altPhone?" · "+esc(OWNER.altPhone):""}</div>`:""}${OWNER.passphraseCustody?`<div><b>Vault key custody:</b> ${esc(OWNER.passphraseCustody)}</div>`:""}${OWNER.successionNotes?`<div style="margin-top:6px">${esc(OWNER.successionNotes)}</div>`:""}</div>`:"";
-  const doc=ownerHead("Estate Register — Disposition &amp; Provenance")+`<div class="pd-note" style="margin-top:0;margin-bottom:10px">Prepared for estate and beneficiary reference, grouped by designated tier and beneficiary.</div>`+body+succBlock+`<div class="pd-foot">Generated locally by ${esc(WORDMARK)} on ${new Date().toLocaleString()}. A personal record, not a legal instrument.</div>`;
+  const succBlock=succ?`<div class="estate-group-h">Succession</div><div class="pd-succ">${OWNER.executor?`<div><b>Executor / attorney:</b> ${esc(OWNER.executor)}</div>`:""}${OWNER.altName?`<div><b>Alternate contact:</b> ${esc(OWNER.altName)}${OWNER.altRelation?" ("+esc(OWNER.altRelation)+")":""}${OWNER.altPhone?" · "+esc(OWNER.altPhone):""}</div>`:""}${OWNER.passphraseCustody?`<div><b>Vault key custody:</b> ${esc(OWNER.passphraseCustody)}</div>`:""}${OWNER.successionNotes?`<div class="u-mt6">${esc(OWNER.successionNotes)}</div>`:""}</div>`:"";
+  const doc=ownerHead("Estate Register — Disposition &amp; Provenance")+`<div class="pd-note u-mt0 u-mb10">Prepared for estate and beneficiary reference, grouped by designated tier and beneficiary.</div>`+body+succBlock+`<div class="pd-foot">Generated locally by ${esc(WORDMARK)} on ${new Date().toLocaleString()}. A personal record, not a legal instrument.</div>`;
   $("#printDoc").innerHTML=doc;window.print();}
 
 /* ── Dialogs ── */
