@@ -673,7 +673,7 @@ function renderTable(){const rows=currentRows();
       (cov==="under"?`<span class="dot warn"></span><span class="num gap-up" style="font-size:11px">Under ${fmtMoney(num(a.marketValue)-num(a.scheduledValue))}</span>`:
        cov==="ok"?`<span class="dot ok"></span><span class="num" style="font-size:11px">OK</span>`:
        `<span class="dot na"></span><span class="num" style="font-size:11px;color:var(--muted-2)">—</span>`);
-    const thumb=(a.photos&&a.photos[0])?`<img class="thumb" style="width:34px;height:34px;border-radius:2px;object-fit:cover;border:1px solid var(--line-2)" src="${a.photos[0].dataUrl}">`:`<div style="width:34px;height:34px;border-radius:2px;border:1px dashed var(--line-2);display:flex;align-items:center;justify-content:center;color:var(--muted-2);font-size:9px;font-family:var(--mono)">—</div>`;
+    const thumb=(a.photos&&a.photos[0]&&a.photos[0].thumbUrl)?`<img class="thumb" style="width:34px;height:34px;border-radius:2px;object-fit:cover;border:1px solid var(--line-2)" src="${a.photos[0].thumbUrl}">`:`<div style="width:34px;height:34px;border-radius:2px;border:1px dashed var(--line-2);display:flex;align-items:center;justify-content:center;color:var(--muted-2);font-size:9px;font-family:var(--mono)">—</div>`;
     const disp=a.disposition==="Heirloom"?`<span class="chip heir">Heirloom${a.heirloomTo?" · "+esc(a.heirloomTo):""}</span>`:a.disposition==="Tool-tier"?`<span class="chip">Tool-tier</span>`:"";
     const rat=a.rating&&a.rating!=="Hold"?`<span class="chip ${a.rating==="Sell"?"sell":""}" style="margin-left:6px">${esc(a.rating)}</span>`:"";
     return `<tr data-id="${a.id}" class="${a.id===editingId?"sel":""} ${isHeld(a)?"":"sold"}">
@@ -700,7 +700,7 @@ function openDrawer(id){const a=ASSETS.find(x=>x.id===id);if(!a)return;editingId
   else if(cov==="ok")cline=`<div class="cover-line ok"><span class="dot ok"></span>Scheduled at ${fmtMoney(a.scheduledValue)} — adequate</div>`;
   const w=warrantyInfo(a);let wline="";
   if(w)wline=`<div class="war-line ${w.state}">${w.state==="exp"?"Warranty expired "+fmtDate(w.exp.toISOString().slice(0,10)):w.state==="soon"?"Warranty expires "+fmtDate(w.exp.toISOString().slice(0,10))+` (${w.days}d)`:"Warranty active to "+fmtDate(w.exp.toISOString().slice(0,10))}</div>`;
-  const photos=(a.photos&&a.photos.length)?`<div class="photos">${a.photos.map(p=>`<img src="${p.dataUrl}">`).join("")}</div>`:"";
+  const photos=(a.photos&&a.photos.length)?`<div class="photos">${a.photos.map(p=>`<img src="${p.thumbUrl||p.dataUrl}">`).join("")}</div>`:"";
   const sec=(l,i)=>i.trim()?`<div class="spec-sec"><div class="lbl">${l}</div><dl class="kv">${i}</dl></div>`:"";
   const prose=(l,t)=>(t&&t.trim())?`<div class="spec-sec"><div class="lbl">${l}</div><div class="prose">${esc(t)}</div></div>`:"";
   const idB=[kv("Category",a.category),kv("Rotation",a.rotation),kv("Maker",a.maker),kv("Model",a.model),kv("Reference",a.reference,1),kv("Serial",a.serial,1),kv("Movement",a.movement,1),kv("Case",[a.caseMaterial,a.caseSize].filter(Boolean).join(", ")),kv("Condition",a.condition),kv("Box & papers",a.boxPapers)].join("");
@@ -732,7 +732,7 @@ function buildGrid(grid,defs){grid.innerHTML="";defs.forEach(f=>{if(f.sec){const
   wrap.innerHTML=`<label for="fld_${f.k}">${esc(f.label)}</label>${ctl}${f.hint?`<div class="hint">${esc(f.hint)}</div>`:""}`;grid.appendChild(wrap);});}
 const setF=(k,v)=>{const el=$("#fld_"+k);if(el)el.value=(v==null?"":v);};
 const getF=k=>{const el=$("#fld_"+k);return el?el.value.trim():"";};
-function renderPhotoStrip(){const strip=$("#photoStrip");if(!strip)return;strip.innerHTML=formPhotos.map((p,i)=>`<div class="pv"><img src="${p.dataUrl}"><button data-i="${i}">×</button></div>`).join("")+`<button class="add-photo" id="addPhoto"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add</button>`;$("#addPhoto").addEventListener("click",()=>$("#photoInput").click());strip.querySelectorAll(".pv button").forEach(b=>b.addEventListener("click",()=>{formPhotos.splice(+b.dataset.i,1);renderPhotoStrip();}));}
+function renderPhotoStrip(){const strip=$("#photoStrip");if(!strip)return;strip.innerHTML=formPhotos.map((p,i)=>`<div class="pv"><img src="${p.thumbUrl||p.dataUrl}"><button data-i="${i}">×</button></div>`).join("")+`<button class="add-photo" id="addPhoto"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add</button>`;$("#addPhoto").addEventListener("click",()=>$("#photoInput").click());strip.querySelectorAll(".pv button").forEach(b=>b.addEventListener("click",()=>{formPhotos.splice(+b.dataset.i,1);renderPhotoStrip();}));}
 function svcRowHTML(s,i){return `<div class="svc-row"><div class="f"><span class="l">Date</span><span class="v num">${esc(fmtDate(s.date))||"—"}</span></div><div class="f"><span class="l">By</span><span class="v">${esc(s.by)||"—"}</span></div><div class="f"><span class="l">Cost</span><span class="v num">${s.cost!=null&&s.cost!==""?fmtMoney(s.cost):"—"}</span></div><div class="f"><span class="l">Work</span><span class="v">${esc(s.work)||"—"}</span></div>${s.accuracy?`<div class="f"><span class="l">Accuracy</span><span class="v num">${esc(s.accuracy)}</span></div>`:""}${i!=null?`<button class="del" data-i="${i}" title="Remove">×</button>`:""}</div>`;}
 function renderServiceLog(){const list=$("#serviceLogList");if(!list)return;
   const sorted=formServiceLog.map((s,i)=>({...s,_i:i})).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
@@ -766,7 +766,45 @@ async function saveForm(again){const data=collectForm();if(!data.maker&&!data.mo
   await persistAsset(rec);renderReadout();renderTable();updateDbNote();toast(editingId?"Updated.":"Saved.");
   if(again){editingId=null;openForm();}else{$("#formScrim").classList.remove("on");editingId=null;renderTable();}}
 function applyParse(){const p=parseListing($("#pasteBox").value);const ks=Object.keys(p);if(!ks.length){toast("No structured fields found in that text.",true);return;}let n=0;ks.forEach(k=>{const el=$("#fld_"+k);if(el&&!el.value.trim()){el.value=p[k];el.closest(".field").classList.add("filled");n++;}});toast(n?`Filled ${n} field${n!==1?"s":""} — review before saving.`:"Fields already filled; nothing overwritten.");}
-const readImage=file=>new Promise(res=>{const r=new FileReader();r.onload=()=>res({id:uuid(),name:file.name,dataUrl:r.result});r.readAsDataURL(file);});
+/* ── Photos — downscaled on import, never stored at full resolution ──
+   A camera JPEG (12MB, 6996x3935) decodes to ~105MB of raster no matter how
+   small it's displayed, and renderTable() embeds the entire base64 string in
+   innerHTML on every keystroke/filter/sort. In WKWebView that exhausts the
+   renderer's memory and it stops painting — rows come out as oversized blank
+   blocks while the DOM underneath stays intact (clicks still work). Storing a
+   1600px display copy plus a 320px thumb takes the table's per-photo cost from
+   16.2MB to 21KB. Keep the table on thumbUrl only. */
+const PHOTO_MAX_EDGE=1600,PHOTO_THUMB_EDGE=320,PHOTO_Q=.82;
+function scaleImage(img,maxEdge,q){
+  const s=Math.min(1,maxEdge/Math.max(img.naturalWidth,img.naturalHeight));
+  const w=Math.max(1,Math.round(img.naturalWidth*s)),h=Math.max(1,Math.round(img.naturalHeight*s));
+  const c=document.createElement("canvas");c.width=w;c.height=h;
+  const cx=c.getContext("2d");cx.imageSmoothingQuality="high";cx.drawImage(img,0,0,w,h);
+  return c.toDataURL("image/jpeg",q);
+}
+const loadImg=src=>new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=()=>rej(new Error("Image could not be decoded."));i.src=src;});
+async function shrinkPhoto(src){const img=await loadImg(src);return{dataUrl:scaleImage(img,PHOTO_MAX_EDGE,PHOTO_Q),thumbUrl:scaleImage(img,PHOTO_THUMB_EDGE,PHOTO_Q)};}
+const readImage=file=>new Promise((res,rej)=>{const r=new FileReader();
+  r.onload=async()=>{try{res({id:uuid(),name:file.name,...(await shrinkPhoto(r.result))});}catch(e){rej(e);}};
+  r.onerror=()=>rej(new Error("File could not be read."));
+  r.readAsDataURL(file);});
+/* Photos saved before downscaling existed still hold a full-res dataUrl. Shrink
+   them once, sequentially, so one oversized image can't be held in memory
+   alongside the next. Runs before the first render. */
+async function migratePhotos(){
+  let n=0;
+  for(const a of ASSETS){
+    if(!a.photos||!a.photos.length)continue;
+    let touched=false;
+    for(const p of a.photos){
+      if(p.thumbUrl||!p.dataUrl)continue;
+      try{const s=await shrinkPhoto(p.dataUrl);p.dataUrl=s.dataUrl;p.thumbUrl=s.thumbUrl;touched=true;n++;}
+      catch(e){}
+    }
+    if(touched){if(MODE==="local"&&_db){try{await idbPut(a);}catch(e){}}else{dirty=true;}}
+  }
+  return n;
+}
 
 /* ── Owner ── */
 function openOwner(){buildGrid($("#ownerGrid"),OWNER_FIELDS);OWNER_FIELDS.forEach(f=>{if(f.k)setF(f.k,OWNER[f.k]);});$("#ownerScrim").classList.add("on");}
@@ -965,7 +1003,10 @@ function wire(){
   $("#parseBtn").addEventListener("click",applyParse);
   $("#advToggle").addEventListener("click",()=>{const wrap=$("#advancedWrap");const open=wrap.style.display!=="none";wrap.style.display=open?"none":"block";$("#advToggle").textContent=open?"+ Full detail — movement, aesthetics, provenance, financial, storage, insurance":"− Hide full detail";});
   $("#svcAddBtn").addEventListener("click",addServiceEntry);
-  document.addEventListener("change",async e=>{if(e.target&&e.target.id==="photoInput"){const fs=Array.from(e.target.files||[]);for(const f of fs)formPhotos.push(await readImage(f));renderPhotoStrip();e.target.value="";}});
+  document.addEventListener("change",async e=>{if(e.target&&e.target.id==="photoInput"){const fs=Array.from(e.target.files||[]);let failed=0;
+    for(const f of fs){try{formPhotos.push(await readImage(f));}catch(err){failed++;}}
+    renderPhotoStrip();e.target.value="";
+    if(failed)toast(`${failed} image${failed!==1?"s":""} couldn't be read.`,true);}});
   $("#ownerClose").addEventListener("click",()=>$("#ownerScrim").classList.remove("on"));
   $("#ownerSave").addEventListener("click",saveOwner);
   $("#ownerSucc").addEventListener("click",()=>{$("#ownerScrim").classList.remove("on");$("#succScrim").classList.add("on");});
@@ -1019,6 +1060,7 @@ function wire(){
       if(hid!=="hid"&&SEED_DATA.length>0)$("#banner").style.display="flex";
     }
   }else{ASSETS=[];}
+  try{const n=await migratePhotos();if(n)toast(`Optimised ${n} stored photo${n!==1?"s":""}.`);}catch(e){}
   applyMode(true);renderReadout();renderTable();updateDbNote();renderLock();
 })();
 </script>
