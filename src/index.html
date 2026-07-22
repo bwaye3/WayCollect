@@ -383,6 +383,7 @@
     <div class="eyebrow" style="margin-bottom:-2px">Encrypted vault</div>
     <button class="btn" id="mExpEnc"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg> Save encrypted vault (.vault.json)</button>
     <button class="btn" id="mImport"><svg viewBox="0 0 24 24"><path d="M12 21V9m0 0l-4 4m4-4l4 4M5 3h14"/></svg> Open / import backup</button>
+    <button class="btn" id="mImportCsv"><svg viewBox="0 0 24 24"><path d="M12 21V9m0 0l-4 4m4-4l4 4M5 3h14"/></svg> Import from CSV</button>
     <div class="eyebrow" style="margin-top:10px;margin-bottom:-2px">Plain (unencrypted)</div>
     <button class="btn ghost" id="mExpPlain"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg> Export plain JSON</button>
     <div class="eyebrow" style="margin-top:10px;margin-bottom:-2px">Documents — print or Save as PDF</div>
@@ -391,6 +392,7 @@
     <div class="eyebrow" style="margin-top:10px;margin-bottom:-2px">Danger zone</div>
     <button class="btn danger ghost" id="mWipe"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg> Erase local database</button>
     <input type="file" id="fileInput" accept=".json,application/json" style="display:none">
+    <input type="file" id="csvFileInput" accept=".csv,text/csv" style="display:none">
   </div>
   <div class="modal-foot"><span class="dialog-text" style="font-size:11px">The encrypted vault is what you truly own. In Vault-only mode, save it before closing or changes are lost.</span></div>
 </div></div>
@@ -783,6 +785,101 @@ function exportEncrypted(){if(!cryptoAvailable()){toast("Encryption unavailable 
   askPass({confirm:true,title:"Encrypt vault",msg:"Choose a passphrase. It wraps the master key that encrypts your whole register. Store it safely — there is no recovery.",onOk:async pass=>{try{const pkg=await seal(bundle(),pass);download(`watch-register-${today()}.vault.json`,JSON.stringify(pkg,null,2));dirty=false;renderLock();toast("Encrypted vault saved.");}catch(e){toast("Encryption failed: "+e.message,true);}}});}
 function importFlow(){$("#menuScrim").classList.remove("on");$("#fileInput").value="";$("#fileInput").click();}
 window.importFlow=importFlow;
+
+/* ── CSV import (additive — adds to the current register, never replaces) ── */
+function parseCSV(text){
+  const rows=[]; let row=[]; let field=""; let inQuotes=false;
+  const s=text.replace(/\r\n/g,"\n").replace(/\r/g,"\n");
+  for(let i=0;i<s.length;i++){
+    const c=s[i];
+    if(inQuotes){
+      if(c==='"'){ if(s[i+1]==='"'){field+='"';i++;} else {inQuotes=false;} }
+      else field+=c;
+    } else {
+      if(c==='"') inQuotes=true;
+      else if(c===','){row.push(field);field="";}
+      else if(c==='\n'){row.push(field);rows.push(row);row=[];field="";}
+      else field+=c;
+    }
+  }
+  if(field.length||row.length){row.push(field);rows.push(row);}
+  return rows.filter(r=>!(r.length===1&&r[0]===""));
+}
+const CSV_ALIASES={
+  maker:["brand"],model:["name","model"],category:["category"],
+  rotation:["rotation status","rotation"],
+  acquiredDate:["date of purchase","purchase date","acquired date"],
+  msrp:["msrp at purchased","msrp at purchase","msrp"],
+  acquiredPrice:["purchase price","price paid","paid"],
+  marketValue:["current market vaule","current market value","market value"],
+  status:["status"],
+  soldDate:["date of sale","sale date","sold date"],
+  soldPrice:["sell price","sale price","sold price"],
+  condition:["condition"],
+  boxPapers:["box and papers","box & papers","box papers"],
+  insured:["insured"],
+  scheduledValue:["insured amount","scheduled value","insured value"],
+  serial:["serial number","serial no","serial"],
+  warrantyYears:["warranty length","warranty years","warrenty length","warrenty years"],
+  warrantyStart:["warranty date actived","warranty date activated","warranty start","warrenty date actived","warrenty date activated","warrenty start"],
+  reference:["reference no","reference"],
+  movement:["movement","caliber","calibre"],
+  caseMaterial:["case material"],caseSize:["case size"],
+  notes:["notes","note"],
+};
+const normHeader=h=>(h||"").toLowerCase().trim().replace(/\s+/g," ");
+function csvMoney(v){if(v==null||v==="")return null;const n=parseFloat(String(v).replace(/[^0-9.\-]/g,""));return isFinite(n)?n:null;}
+function csvDate(v){
+  if(!v)return"";const s=String(v).trim();
+  const m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if(m){let mo=m[1],da=m[2],yr=m[3];if(yr.length===2)yr="20"+yr;return `${yr}-${mo.padStart(2,"0")}-${da.padStart(2,"0")}`;}
+  const d=new Date(s);return isNaN(d)?"":d.toISOString().slice(0,10);
+}
+function mapCsvRow(headerMap,cells){
+  const rec={};
+  for(const key in headerMap){const idx=headerMap[key];if(idx==null)continue;rec[key]=(cells[idx]||"").trim();}
+  const bp=rec.boxPapers||"";
+  return {
+    id:uuid(),createdAt:Date.now(),photos:[],serviceHistory:[],disposition:"",heirloomTo:"",rating:"Hold",
+    maker:rec.maker||"",model:rec.model||"",category:rec.category||"Field",
+    rotation:rec.rotation||"Daily Beater",
+    acquiredDate:csvDate(rec.acquiredDate),
+    msrp:csvMoney(rec.msrp),acquiredPrice:csvMoney(rec.acquiredPrice),marketValue:csvMoney(rec.marketValue),
+    status:(rec.status||"").toLowerCase()==="sold"?"Sold":"Active",
+    soldDate:csvDate(rec.soldDate),soldPrice:csvMoney(rec.soldPrice),
+    condition:rec.condition||"",
+    boxPapers:/box/i.test(bp)?"Full set":/paper/i.test(bp)?"Papers only":bp,
+    insured:(rec.insured||"").toLowerCase()==="yes",
+    scheduledValue:csvMoney(rec.scheduledValue),
+    serial:rec.serial||"",warrantyYears:csvMoney(rec.warrantyYears),warrantyStart:csvDate(rec.warrantyStart),
+    reference:rec.reference||"",movement:rec.movement||"",
+    caseMaterial:rec.caseMaterial||"",caseSize:rec.caseSize||"",
+    notes:rec.notes||"",
+  };
+}
+function importCsvFlow(){$("#menuScrim").classList.remove("on");$("#csvFileInput").value="";$("#csvFileInput").click();}
+window.importCsvFlow=importCsvFlow;
+async function handleImportCsvFile(file){
+  const text=await file.text();
+  const rows=parseCSV(text);
+  if(!rows.length){toast("That CSV appears to be empty.",true);return;}
+  const header=rows[0].map(normHeader);
+  const headerMap={};
+  for(const key in CSV_ALIASES){let idx=-1;for(const alias of CSV_ALIASES[key]){idx=header.indexOf(alias);if(idx>=0)break;}headerMap[key]=idx>=0?idx:null;}
+  if(headerMap.maker==null&&headerMap.model==null){toast("Couldn't find a Brand/Name column — check the CSV's header row.",true);return;}
+  const dataRows=rows.slice(1).filter(r=>r.some(c=>c&&c.trim()));
+  const records=dataRows.map(r=>mapCsvRow(headerMap,r)).filter(r=>r.maker||r.model);
+  if(!records.length){toast("No usable rows found in that CSV.",true);return;}
+  confirmDlg(`Add ${records.length} watch${records.length!==1?"es":""} from CSV?`,
+    `This adds to your current ${ASSETS.length}-watch register — it does not replace anything. Review each new entry afterward; the CSV importer maps common columns but can't catch everything.`,
+    async()=>{
+      ASSETS=ASSETS.concat(records);
+      if(MODE==="local"){for(const a of records)await idbPut(a);}else{markDirty();}
+      renderReadout();renderTable();updateDbNote();
+      toast(`Added ${records.length} watch${records.length!==1?"es":""} from CSV.`);
+    });
+}
+
 async function handleImportFile(file){const text=await file.text();let obj;try{obj=JSON.parse(text);}catch(e){toast("Not valid JSON.",true);return;}
   if(obj&&obj.format==="ledger.vault"){if(!cryptoAvailable()){toast("Encrypted file, but crypto is unavailable here.",true);return;}
     askPass({confirm:false,title:"Open vault",msg:"Enter the passphrase for this encrypted vault.",onOk:async pass=>{try{const b=await unseal(obj,pass);await ingest(b);toast("Vault opened.");}catch(e){toast("Wrong passphrase or corrupted file.",true);}}});}
@@ -876,6 +973,8 @@ function wire(){
   $("#mExpPlain").addEventListener("click",exportPlain);
   $("#mImport").addEventListener("click",importFlow);
   $("#fileInput").addEventListener("change",e=>{if(e.target.files[0])handleImportFile(e.target.files[0]);});
+  $("#mImportCsv").addEventListener("click",importCsvFlow);
+  $("#csvFileInput").addEventListener("change",e=>{if(e.target.files[0])handleImportCsvFile(e.target.files[0]);});
   $("#mPrintIns").addEventListener("click",printInsurance);
   $("#mPrintEst").addEventListener("click",printEstate);
   $("#mWipe").addEventListener("click",()=>{$("#menuScrim").classList.remove("on");confirmDlg("Erase local database?","Clears the register from this browser. Exported vault files are untouched. Cannot be undone.",async()=>{await idbClear();ASSETS=[];OWNER={...OWNER_DEFAULT};renderReadout();renderTable();updateDbNote();toast("Local database erased.",true);});});
