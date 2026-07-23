@@ -515,6 +515,7 @@
     <button class="btn ghost" id="mExpPlain"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg> Export plain JSON</button>
     <div class="eyebrow u-mt10 u-mbn2">Documents — print or Save as PDF</div>
     <button class="btn" id="mPrintIns"><svg viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 18H4v-6h16v6h-2M8 14h8v6H8z"/></svg> Insurance schedule</button>
+    <button class="btn" id="mPrintDisp"><svg viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 18H4v-6h16v6h-2M8 14h8v6H8z"/></svg> Sales &amp; disposition</button>
     <button class="btn" id="mPrintEst"><svg viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 18H4v-6h16v6h-2M8 14h8v6H8z"/></svg> Estate register</button>
     <div class="eyebrow u-mt10 u-mbn2">Security</div>
     <label class="dialog-text u-f11" for="idleSel">Lock automatically after</label>
@@ -641,7 +642,8 @@ const FIELDS_CORE=[
   {k:"serviceBy",label:"Serviced by",type:"text"},
   {sec:"Sale (if sold)"},
   {k:"soldDate",label:"Date of sale",type:"date"},
-  {k:"soldPrice",label:"Sale price",type:"money"},
+  {k:"soldPrice",label:"Sale price",type:"money",hint:"gross, before fees"},
+  {k:"soldFees",label:"Selling fees / commission",type:"money",hint:"auction, dealer, platform, shipping"},
   {sec:"Provenance & notes"},
   {k:"provenance",label:"Provenance",type:"textarea",full:true,placeholder:"Delivery card, prior owners, service papers, chain of custody…"},
   {k:"notes",label:"Notes",type:"textarea",full:true},
@@ -689,7 +691,17 @@ const FIELDS_ADV=[
   {k:"deductible",label:"Deductible",type:"money"},
 ];
 const FIELD_KEYS=FIELDS_CORE.filter(f=>f.k).map(f=>f.k).concat(FIELDS_ADV.filter(f=>f.k).map(f=>f.k));
-const MONEY_KEYS=["msrp","acquiredPrice","marketValue","scheduledValue","soldPrice","dutiesPaid","shippingCost","deductible"];
+const MONEY_KEYS=["msrp","acquiredPrice","marketValue","scheduledValue","soldPrice","soldFees","dutiesPaid","shippingCost","deductible"];
+/* True cost basis includes what it took to land the watch, not just the sticker.
+   Net proceeds subtract what it cost to sell it. Gross sale price flatters
+   every result and is the wrong number to report. */
+const costBasis=a=>(num(a.acquiredPrice)||0)+(num(a.dutiesPaid)||0)+(num(a.shippingCost)||0);
+const netProceeds=a=>(num(a.soldPrice)||0)-(num(a.soldFees)||0);
+const realizedPL=a=>netProceeds(a)-costBasis(a);
+function heldDays(a){if(!a.acquiredDate||!a.soldDate)return null;
+  const d=(new Date(a.soldDate)-new Date(a.acquiredDate))/86400000;return isFinite(d)?Math.round(d):null;}
+function heldLabel(a){const d=heldDays(a);if(d==null)return "—";
+  if(d<365)return d+" days";const y=d/365.25;return (y<10?y.toFixed(1):Math.round(y))+" yr";}
 
 const OWNER_FIELDS=[
   {sec:"Owner"},
@@ -866,6 +878,9 @@ function renderReadout(){const held=ASSETS.filter(isHeld);const sold=ASSETS.leng
   c.push(`<div class="stat"><span class="k">Market value</span><span class="v">${mkt?fmtMoney(mkt):"—"}</span></div>`);
   c.push(`<div class="stat"><span class="k">Cost basis</span><span class="v">${paid?fmtMoney(paid):"—"}</span></div>`);
   c.push(`<div class="stat ${pl>=0?"pl-pos":"pl-neg"}"><span class="k">Unrealized</span><span class="v">${(pl>=0?"+":"−")+fmtMoney(Math.abs(pl))}</span></div>`);
+  const soldList=ASSETS.filter(a=>!isHeld(a));
+  if(soldList.length){const rz=soldList.reduce((s,a)=>s+realizedPL(a),0);
+    c.push(`<div class="stat ${rz>=0?"pl-pos":"pl-neg"}"><span class="k">Realized</span><span class="v">${(rz>=0?"+":"−")+fmtMoney(Math.abs(rz))}<small>· ${soldList.length} sold</small></span></div>`);}
   if(under>0)c.push(`<div class="stat flag warn"><span class="k">Underinsured · gap</span><span class="v">${under}<small>· ${fmtMoney(gap)}</small></span></div>`);
   if(uninsured>0)c.push(`<div class="stat"><span class="k">Uninsured</span><span class="v">${uninsured}</span></div>`);
   $("#readout").innerHTML=c.join("");}
@@ -1165,6 +1180,34 @@ function printInsurance(){$("#menuScrim").classList.remove("on");
     return `<tr><td class="r">${i+1}</td><td>${esc([a.maker,a.model].filter(Boolean).join(" "))}</td><td>${esc(a.reference||"")}</td><td>${esc(a.serial||"—")}</td><td>${esc(a.condition||"")}</td><td class="r">${m!=null?fmtMoney(m):"—"}</td><td class="r ${flag?"pd-flag":""}">${s!=null?fmtMoney(s):"—"}${flag?" ▲":""}</td></tr>`;}).join("");
   const doc=ownerHead("Scheduled Property — Insurance Inventory")+`<table class="pd-table"><thead><tr><th class="r">#</th><th>Article</th><th>Reference</th><th>Serial</th><th>Condition</th><th class="r">Market value</th><th class="r">Scheduled value</th></tr></thead><tbody>${trs}</tbody><tfoot><tr><td colspan="5">Totals (${rows.length} held)</td><td class="r">${fmtMoney(tM)}</td><td class="r">${fmtMoney(tS)}</td></tr></tfoot></table>`+(under>0?`<div class="pd-note"><b class="pd-flag">▲ ${under} item${under!==1?"s":""} flagged:</b> current market value exceeds scheduled (insured) value. Consider raising the rider to close the gap.</div>`:"")+`<div class="pd-note">Market figures are the owner's estimates, not formal appraisals. Serial numbers left blank were not recorded at time of preparation.</div><div class="pd-foot">Generated locally by ${esc(WORDMARK)} on ${new Date().toLocaleString()}. No data transmitted.</div>`;
   $("#printDoc").innerHTML=doc;window.print();}
+function printDisposition(){$("#menuScrim").classList.remove("on");
+  const rows=ASSETS.filter(a=>!isHeld(a)).slice()
+    .sort((a,b)=>String(b.soldDate||"").localeCompare(String(a.soldDate||"")));
+  if(!rows.length){toast("No sold pieces to report yet.",true);return;}
+  let tC=0,tP=0,tF=0;
+  const trs=rows.map((a,i)=>{
+    const cb=costBasis(a),np=netProceeds(a),pl=realizedPL(a),fee=num(a.soldFees)||0;
+    tC+=cb;tP+=np;tF+=fee;
+    return `<tr><td class="r">${i+1}</td>`+
+      `<td>${esc([a.maker,a.model].filter(Boolean).join(" "))}</td>`+
+      `<td>${esc(a.acquiredDate||"—")}</td>`+
+      `<td class="r">${cb?fmtMoney(cb):"—"}</td>`+
+      `<td>${esc(a.soldDate||"—")}</td>`+
+      `<td class="r">${a.soldPrice?fmtMoney(num(a.soldPrice)):"—"}</td>`+
+      `<td class="r">${fee?fmtMoney(fee):"—"}</td>`+
+      `<td class="r">${np?fmtMoney(np):"—"}</td>`+
+      `<td class="r"><b>${(pl>=0?"+":"−")+fmtMoney(Math.abs(pl))}</b></td>`+
+      `<td>${heldLabel(a)}</td></tr>`;}).join("");
+  const total=tP-tC;
+  const doc=ownerHead("Sales & Disposition — Realized Gains and Losses")+
+    `<table class="pd-table"><thead><tr><th class="r">#</th><th>Article</th><th>Acquired</th>`+
+    `<th class="r">Cost basis</th><th>Sold</th><th class="r">Gross</th><th class="r">Fees</th>`+
+    `<th class="r">Net proceeds</th><th class="r">Gain / loss</th><th>Held</th></tr></thead>`+
+    `<tbody>${trs}</tbody><tfoot><tr><td></td><td><b>${rows.length} disposal${rows.length!==1?"s":""}</b></td><td></td>`+
+    `<td class="r"><b>${fmtMoney(tC)}</b></td><td></td><td></td><td class="r"><b>${fmtMoney(tF)}</b></td>`+
+    `<td class="r"><b>${fmtMoney(tP)}</b></td><td class="r"><b>${(total>=0?"+":"−")+fmtMoney(Math.abs(total))}</b></td><td></td></tr></tfoot></table>`+
+    `<div class="pd-note">Cost basis includes purchase price plus duties and shipping where recorded. Net proceeds are gross sale price less selling fees. Prepared from the owner's own records for accounting purposes; it is not tax advice, and collectibles may be treated differently from other capital assets — confirm treatment with your accountant.</div>`;
+  $("#printDoc").innerHTML=doc;window.print();}
 function printEstate(){$("#menuScrim").classList.remove("on");
   const g={};ASSETS.filter(isHeld).forEach(a=>{const key=a.disposition==="Heirloom"?("Heirloom — "+(a.heirloomTo||"Unassigned beneficiary")):(a.disposition||"Unassigned");(g[key]=g[key]||[]).push(a);});
   const order=Object.keys(g).sort((a,b)=>(a.startsWith("Heirloom")?0:1)-(b.startsWith("Heirloom")?0:1)||a.localeCompare(b));
@@ -1273,6 +1316,7 @@ function wire(){
   $("#csvFileInput").addEventListener("change",e=>{if(e.target.files[0])handleImportCsvFile(e.target.files[0]);});
   $("#mPrintIns").addEventListener("click",printInsurance);
   $("#mPrintEst").addEventListener("click",printEstate);
+  $("#mPrintDisp").addEventListener("click",printDisposition);
   $("#mWipe").addEventListener("click",()=>{$("#menuScrim").classList.remove("on");confirmDlg("Erase encrypted register?","Erases the encrypted register from this machine, along with its passphrase and recovery key. Exported vault files are untouched. Cannot be undone.",async()=>{await idbClear();await metaDel(STORE_KEY);await metaDel("owner");await metaDel("seeded");MK=null;STORE_PKG=null;ASSETS=[];OWNER={...OWNER_DEFAULT};editingId=null;clearIdle();renderReadout();renderTable();updateDbNote();toast("Register erased from this machine.",true);beginCreate("Set a passphrase to start a new encrypted register on this machine.");});});
   $("#pwOk").addEventListener("click",pwSubmit);
   $("#pwCancel").addEventListener("click",()=>{$("#pwScrim").classList.remove("on");pwState=null;});
