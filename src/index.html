@@ -452,7 +452,7 @@
     <div class="filters">
       <select class="sel" id="fCat"><option value="">All categories</option></select>
       <select class="sel" id="fRot"><option value="">Any rotation</option></select>
-      <select class="sel" id="fDisp"><option value="">Any disposition</option><option value="Heirloom">Heirloom</option><option value="Tool-tier">Tool-tier</option><option value="__none">Unassigned</option></select>
+      <select class="sel" id="fDisp"><option value="">Any disposition</option><option value="Heirloom">Heirloom</option><option value="Investment">Investment</option><option value="Sentimental">Sentimental</option><option value="Tool">Tool</option><option value="Undecided">Undecided</option><option value="__none">Unassigned</option></select>
       <select class="sel" id="fCover"><option value="">Any coverage</option><option value="under">Underinsured</option><option value="ok">Covered</option><option value="none">Uninsured</option></select>
       <select class="sel" id="fStars"><option value="">Any rating</option><option value="__grail">★ Grails only</option>
         <option value="5">★★★★★</option><option value="4">★★★★ and up</option><option value="3">★★★ and up</option><option value="__none">Unrated</option></select>
@@ -653,7 +653,7 @@ const FIELDS_CORE=[
   {k:"warrantyYears",label:"Warranty length (yrs)",type:"text",mono:true,placeholder:"2"},
   {k:"warrantyStart",label:"Warranty activated",type:"date"},
   {sec:"Disposition (estate)"},
-  {k:"disposition",label:"Tier",type:"select",opts:["","Heirloom","Tool-tier"],def:""},
+  {k:"disposition",label:"Tier",type:"select",opts:["","Undecided","Heirloom","Investment","Sentimental","Tool"],def:"",hint:"what this piece is for"},
   {k:"heirloomTo",label:"Designated to",type:"text",placeholder:"Brooke"},
   {k:"rating",label:"Ledger rating",type:"select",opts:["","Hold","Buy","Sell","Watch"],def:"Hold",hint:"what you intend to do"},
   {k:"stars",label:"Personal rating",type:"stars",def:"",hint:"how much you love it"},
@@ -708,7 +708,9 @@ const FIELDS_ADV=[
   {k:"storageLocation",label:"Storage location",type:"select",opts:["","Worn / in rotation","Home safe","Safe-deposit box","Dehumidifier / watch box","Winder"],def:""},
   {k:"lastWornDate",label:"Last worn",type:"date"},
   {sec:"Insurance detail"},
-  {k:"insurerName",label:"Insurer",type:"text"},
+  {k:"insurerName",label:"Insurer",type:"select",opts:["","Hodinkee","Chubb","Jewelers Mutual","Homeowner's policy","Other / self-insured"],def:""},
+  {k:"insurerOther",label:"Insurer (if other)",type:"text"},
+  {k:"payoutPct",label:"Pays up to",type:"select",opts:["","100% of scheduled","125% of scheduled","150% of scheduled"],def:""},
   {k:"policyNumber",label:"Policy / rider no.",type:"text",mono:true},
   {k:"insuranceRenewal",label:"Renewal date",type:"date"},
   {k:"deductible",label:"Deductible",type:"money"},
@@ -782,7 +784,16 @@ const fmtMoney=(v,s=DISPLAY_CUR)=>{const n=num(v);return n==null?"":s+n.toLocale
 function fmtDate(s){if(!s)return"";const d=new Date(s.length<=10?s+"T00:00:00":s);return isNaN(d)?esc(s):d.toLocaleDateString("en-US",{year:"numeric",month:"short",day:"numeric"});}
 const today=()=>new Date().toISOString().slice(0,10);
 const isHeld=a=>a.status!=="Sold";
-function coverageState(a){if(!isHeld(a))return"sold";const m=num(a.marketValue),s=num(a.scheduledValue);const ins=(a.insured===true||a.insured==="Yes");if(!ins&&s==null)return"none";if(m!=null&&s!=null)return m>s?"under":"ok";return"partial";}
+const payoutFactor=a=>{const p=String(a.payoutPct||"");const m=p.match(/(\d+)\s*%/);
+  if(m)return (+m[1])/100;
+  return a.insurerName==="Hodinkee"?1.5:1;};
+const coverCeiling=a=>{const s=num(a.scheduledValue);return s==null?null:s*payoutFactor(a);};
+function coverageState(a){if(!isHeld(a))return"sold";
+  const m=num(a.marketValue),c=coverCeiling(a);
+  const ins=(a.insured===true||a.insured==="Yes");
+  if(!ins&&c==null)return"none";
+  if(m!=null&&c!=null)return m>c?"under":"ok";
+  return"partial";}
 function warrantyInfo(a){const yrs=num(a.warrantyYears),st=a.warrantyStart;if(!yrs||!st)return null;const d=new Date(st.length<=10?st+"T00:00:00":st);if(isNaN(d))return null;const exp=new Date(d);exp.setFullYear(exp.getFullYear()+yrs);const days=Math.round((exp-new Date())/864e5);return{exp,days,state:days<0?"exp":days<=90?"soon":"act"};}
 function toast(m,warn){const t=document.createElement("div");t.className="toast"+(warn?" warn":"");t.textContent=m;$("#toasts").appendChild(t);setTimeout(()=>{t.style.opacity="0";t.style.transition="opacity .3s";setTimeout(()=>t.remove(),320);},2600);}
 function markDirty(){dirty=true;renderLock();}
@@ -901,7 +912,7 @@ function currentRows(){let r=ASSETS.slice();const q=ui.q.trim().toLowerCase();
 /* ── Readout ── */
 function renderReadout(){const held=ASSETS.filter(isHeld);const sold=ASSETS.length-held.length;
   let paid=0,mkt=0,under=0,gap=0,uninsured=0;
-  held.forEach(a=>{paid+=num(a.acquiredPrice)||0;mkt+=num(a.marketValue)||0;const cs=coverageState(a);if(cs==="none"||cs==="partial")uninsured++;if(cs==="under"){under++;gap+=num(a.marketValue)-num(a.scheduledValue);}});
+  held.forEach(a=>{paid+=num(a.acquiredPrice)||0;mkt+=num(a.marketValue)||0;const cs=coverageState(a);if(cs==="none"||cs==="partial")uninsured++;if(cs==="under"){under++;gap+=num(a.marketValue)-coverCeiling(a);}});
   const pl=mkt-paid;
   const c=[];
   c.push(`<div class="stat"><span class="k">Held</span><span class="v">${held.length}${sold?`<small>+${sold} sold</small>`:""}</span></div>`);
@@ -935,11 +946,11 @@ function renderTable(){const rows=currentRows();
   const thead=COLS.map(c=>{const ar=(ui.sortKey===c.k)?`<span class="arw">${ui.sortDir>0?"▲":"▼"}</span>`:"";return `<th class="${c.cls||""}${c.sort?"":" no-sort"}" ${c.sort?`data-sort="${c.k}"`:""}>${esc(c.label)}${ar}</th>`;}).join("");
   const body=rows.map(a=>{const cov=coverageState(a);
     const covCell=cov==="sold"?`<span class="num u-muted2 u-f11">sold</span>`:
-      (cov==="under"?`<span class="dot warn"></span><span class="num gap-up u-f11">Under ${fmtMoney(num(a.marketValue)-num(a.scheduledValue))}</span>`:
+      (cov==="under"?`<span class="dot warn"></span><span class="num gap-up u-f11">Under ${fmtMoney(num(a.marketValue)-coverCeiling(a))}</span>`:
        cov==="ok"?`<span class="dot ok"></span><span class="num u-f11">OK</span>`:
        `<span class="dot na"></span><span class="num u-f11 u-muted2">—</span>`);
     const thumb=(a.photos&&a.photos[0]&&a.photos[0].thumbUrl)?`<img class="thumb" src="${a.photos[0].thumbUrl}">`:`<div class="thumb-empty">—</div>`;
-    const disp=a.disposition==="Heirloom"?`<span class="chip heir">Heirloom${a.heirloomTo?" · "+esc(a.heirloomTo):""}</span>`:a.disposition==="Tool-tier"?`<span class="chip">Tool-tier</span>`:"";
+    const disp=a.disposition==="Heirloom"?`<span class="chip heir">Heirloom${a.heirloomTo?" · "+esc(a.heirloomTo):""}</span>`:a.disposition?`<span class="chip">${esc(a.disposition)}</span>`:"";
     const gr=a.grail?`<span class="chip grail u-ml6">★ Grail</span>`:"";
     const rat=a.rating&&a.rating!=="Hold"?`<span class="chip u-ml6 ${a.rating==="Sell"?"sell":""}">${esc(a.rating)}</span>`:"";
     return `<tr data-id="${a.id}" class="${a.id===editingId?"sel":""} ${isHeld(a)?"":"sold"}">
@@ -962,7 +973,7 @@ function openDrawer(id){const a=ASSETS.find(x=>x.id===id);if(!a)return;editingId
   $("#dTitle").textContent=[a.maker,a.model].filter(Boolean).join(" ")||"Untitled";
   $("#dSub").textContent=[a.category,a.reference?("Ref. "+a.reference):"",a.rotation].filter(Boolean).join("  ·  ");
   const cov=coverageState(a);let cline="";
-  if(cov==="under")cline=`<div class="cover-line warn"><span class="dot warn"></span>Underinsured by ${fmtMoney(num(a.marketValue)-num(a.scheduledValue))} — scheduled ${fmtMoney(a.scheduledValue)} vs market ${fmtMoney(a.marketValue)}</div>`;
+  if(cov==="under")cline=`<div class="cover-line warn"><span class="dot warn"></span>Underinsured by ${fmtMoney(num(a.marketValue)-coverCeiling(a))} — scheduled ${fmtMoney(a.scheduledValue)} vs market ${fmtMoney(a.marketValue)}</div>`;
   else if(cov==="ok")cline=`<div class="cover-line ok"><span class="dot ok"></span>Scheduled at ${fmtMoney(a.scheduledValue)} — adequate</div>`;
   const w=warrantyInfo(a);let wline="";
   if(w)wline=`<div class="war-line ${w.state}">${w.state==="exp"?"Warranty expired "+fmtDate(w.exp.toISOString().slice(0,10)):w.state==="soon"?"Warranty expires "+fmtDate(w.exp.toISOString().slice(0,10))+` (${w.days}d)`:"Warranty active to "+fmtDate(w.exp.toISOString().slice(0,10))}</div>`;
