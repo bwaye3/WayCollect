@@ -235,6 +235,28 @@
 
   .dialog-text{color:var(--prose);font-size:14px;line-height:1.7}
   #confMsg{white-space:pre-line}
+  /* documents + lightbox */
+  .doc-list{display:flex;flex-direction:column;gap:6px}
+  .doc-row{display:flex;align-items:center;gap:10px;background:var(--surface-2);border:1px solid var(--line-2);border-radius:var(--r);padding:8px 12px;color:var(--text);font-size:12.5px;text-align:left}
+  button.doc-row{cursor:pointer;width:100%}
+  button.doc-row:hover{border-color:var(--brass-dim)}
+  .doc-ic{font-family:var(--mono);font-size:9px;letter-spacing:.08em;color:var(--brass);border:1px solid var(--brass-dim);border-radius:2px;padding:2px 5px;flex:none}
+  .doc-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+  .doc-size{font-family:var(--mono);font-size:10px;color:var(--muted-2);flex:none}
+  .doc-save{font-family:var(--mono);font-size:10px;color:var(--brass);flex:none}
+  .doc-del{background:none;border:none;color:var(--muted-2);cursor:pointer;font-size:13px;flex:none}
+  .doc-del:hover{color:var(--alert)}
+  .add-doc{background:transparent;border:1px dashed var(--line-2);border-radius:var(--r);color:var(--muted);font-family:var(--mono);font-size:10.5px;padding:9px;cursor:pointer;width:100%}
+  .add-doc:hover{border-color:var(--brass-dim);color:var(--brass)}
+  .photos img,.photo-strip .pv img{cursor:zoom-in}
+  .lb{position:fixed;inset:0;z-index:300;background:rgba(6,7,9,.93);display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:28px}
+  .lb.on{display:flex}
+  .lb img{max-width:92vw;max-height:78vh;object-fit:contain;border:1px solid var(--line-2);border-radius:3px}
+  .lb-bar{display:flex;gap:10px;align-items:center}
+  .lb-name{font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .starcell{white-space:nowrap}
+  .starcell .star-read{font-size:11px}
+  .chip.seek{border-color:var(--ok);color:var(--ok)}
   /* Personal rating. Ordinal and one click — a dropdown would mean open, read,
      choose, close for something you set across the whole collection in a sitting. */
   .stars{display:flex;align-items:center;gap:2px}
@@ -358,7 +380,9 @@
 </head>
 <body>
 <div class="app" id="app">
-  <!-- lock / first-run setup -->
+  <div class="lb" id="lightbox"><img id="lbImg" alt="Full-size photo"><div class="lb-bar"><span class="lb-name" id="lbName"></span><button class="btn" id="lbSave">Save full size</button><button class="btn ghost" id="lbClose">Close</button></div></div>
+
+<!-- lock / first-run setup -->
 <div class="lock-screen" id="lockScreen">
   <div class="lock-card">
     <div class="lock-mark">RE<b>GISTER</b></div>
@@ -454,9 +478,9 @@
       <select class="sel" id="fRot"><option value="">Any rotation</option></select>
       <select class="sel" id="fDisp"><option value="">Any disposition</option><option value="Heirloom">Heirloom</option><option value="Investment">Investment</option><option value="Sentimental">Sentimental</option><option value="Tool">Tool</option><option value="Undecided">Undecided</option><option value="__none">Unassigned</option></select>
       <select class="sel" id="fCover"><option value="">Any coverage</option><option value="under">Underinsured</option><option value="ok">Covered</option><option value="none">Uninsured</option></select>
-      <select class="sel" id="fStars"><option value="">Any rating</option><option value="__grail">★ Grails only</option>
+      <select class="sel" id="fStars"><option value="">Any rating</option><option value="__grail">★ Grails (all)</option><option value="__holy">★ Holy grails</option>
         <option value="5">★★★★★</option><option value="4">★★★★ and up</option><option value="3">★★★ and up</option><option value="__none">Unrated</option></select>
-      <select class="sel" id="fStatus"><option value="">Held &amp; sold</option><option value="Active">Held only</option><option value="Sold">Sold only</option></select>
+      <select class="sel" id="fStatus"><option value="">All</option><option value="Active">Owned</option><option value="Seeking">Seeking</option><option value="Sold">Sold</option><option value="Lost">Lost</option></select>
     </div>
     <span class="count-note" id="countNote"></span>
   </div>
@@ -630,7 +654,7 @@ const FIELDS_CORE=[
   {sec:"Identification"},
   {k:"category",label:"Category",type:"select",opts:CATEGORIES,def:"Field"},
   {k:"rotation",label:"Rotation status",type:"select",opts:ROTATIONS,def:"Daily Beater"},
-  {k:"status",label:"Status",type:"select",opts:["Active","Sold"],def:"Active"},
+  {k:"status",label:"Status",type:"select",opts:["Seeking",["Active","Owned"],"Sold","Lost"],def:"Active"},
   {k:"maker",label:"Maker / brand",type:"text",placeholder:"Rolex"},
   {k:"model",label:"Model",type:"text",placeholder:"Explorer"},
   {k:"reference",label:"Reference no.",type:"text",mono:true},
@@ -649,6 +673,9 @@ const FIELDS_CORE=[
   {k:"marketValue",label:"Current market value",type:"money",hint:"latest comp"},
   {k:"insured",label:"Insured",type:"select",opts:["No","Yes"],def:"No"},
   {k:"scheduledValue",label:"Scheduled (insured) value",type:"money",hint:"rider amount"},
+  {k:"insurerName",label:"Insurer",type:"select",opts:["","Hodinkee","Chubb","Jewelers Mutual","Homeowner's policy","Other / self-insured"],def:""},
+  {k:"insurerOther",label:"Insurer (if other)",type:"text"},
+  {k:"payoutPct",label:"Pays up to",type:"select",opts:["","100% of scheduled","125% of scheduled","150% of scheduled"],def:"",hint:"drives the coverage math — Hodinkee pays to 150%"},
   {sec:"Warranty"},
   {k:"warrantyYears",label:"Warranty length (yrs)",type:"text",mono:true,placeholder:"2"},
   {k:"warrantyStart",label:"Warranty activated",type:"date"},
@@ -657,7 +684,7 @@ const FIELDS_CORE=[
   {k:"heirloomTo",label:"Designated to",type:"text",placeholder:"Brooke"},
   {k:"rating",label:"Ledger rating",type:"select",opts:["","Hold","Buy","Sell","Watch"],def:"Hold",hint:"what you intend to do"},
   {k:"stars",label:"Personal rating",type:"stars",def:"",hint:"how much you love it"},
-  {k:"grail",label:"Grail",type:"toggle",def:"",hint:"the one you chased — independent of rating"},
+  {k:"grail",label:"Grail",type:"tri",def:"",hint:"Grail — evaluating or landed · Holy grail — the unattainable one"},
   {sec:"Service"},
   {k:"lastService",label:"Last serviced",type:"date"},
   {k:"serviceBy",label:"Serviced by",type:"text"},
@@ -667,6 +694,14 @@ const FIELDS_CORE=[
   {k:"soldFees",label:"Selling fees / commission",type:"money",hint:"auction, dealer, platform, shipping"},
   {k:"soldChannel",label:"Sold via",type:"select",opts:["","Private sale","Dealer","Auction house","Marketplace (Chrono24, eBay)","Forum / community","Trade-in","Consignment"],def:""},
   {k:"soldTo",label:"Buyer / consignee",type:"text"},
+  {sec:"Loss & insurance claim (if stolen or lost)"},
+  {k:"lossType",label:"Type of loss",type:"select",opts:["","Stolen","Mysterious disappearance","Damaged / destroyed"],def:"",hint:"use your policy's wording"},
+  {k:"lossDate",label:"Date of loss",type:"date"},
+  {k:"policeReport",label:"Police report no.",type:"text",mono:true},
+  {k:"claimNumber",label:"Claim no.",type:"text",mono:true},
+  {k:"settlementAmount",label:"Settlement received",type:"money",hint:"what actually hit your account"},
+  {k:"settlementDate",label:"Settlement date",type:"date"},
+  {k:"lossNotes",label:"Circumstances",type:"textarea",full:true,placeholder:"What happened — adjusters ask"},
   {sec:"Provenance & notes"},
   {k:"provenance",label:"Provenance",type:"textarea",full:true,placeholder:"Delivery card, prior owners, service papers, chain of custody…"},
   {k:"notes",label:"Notes",type:"textarea",full:true},
@@ -708,20 +743,19 @@ const FIELDS_ADV=[
   {k:"storageLocation",label:"Storage location",type:"select",opts:["","Worn / in rotation","Home safe","Safe-deposit box","Dehumidifier / watch box","Winder"],def:""},
   {k:"lastWornDate",label:"Last worn",type:"date"},
   {sec:"Insurance detail"},
-  {k:"insurerName",label:"Insurer",type:"select",opts:["","Hodinkee","Chubb","Jewelers Mutual","Homeowner's policy","Other / self-insured"],def:""},
-  {k:"insurerOther",label:"Insurer (if other)",type:"text"},
-  {k:"payoutPct",label:"Pays up to",type:"select",opts:["","100% of scheduled","125% of scheduled","150% of scheduled"],def:""},
+  
   {k:"policyNumber",label:"Policy / rider no.",type:"text",mono:true},
   {k:"insuranceRenewal",label:"Renewal date",type:"date"},
   {k:"deductible",label:"Deductible",type:"money"},
 ];
 const FIELD_KEYS=FIELDS_CORE.filter(f=>f.k).map(f=>f.k).concat(FIELDS_ADV.filter(f=>f.k).map(f=>f.k));
-const MONEY_KEYS=["msrp","acquiredPrice","marketValue","scheduledValue","soldPrice","soldFees","dutiesPaid","shippingCost","deductible"];
+const MONEY_KEYS=["msrp","acquiredPrice","marketValue","scheduledValue","soldPrice","soldFees","settlementAmount","dutiesPaid","shippingCost","deductible"];
 /* True cost basis includes what it took to land the watch, not just the sticker.
    Net proceeds subtract what it cost to sell it. Gross sale price flatters
    every result and is the wrong number to report. */
 const costBasis=a=>(num(a.acquiredPrice)||0)+(num(a.dutiesPaid)||0)+(num(a.shippingCost)||0);
-const netProceeds=a=>(num(a.soldPrice)||0)-(num(a.soldFees)||0);
+/* A claim is a disposal with proceeds: the settlement sits where sale price does. */
+const netProceeds=a=>isLost(a)?(num(a.settlementAmount)||0):(num(a.soldPrice)||0)-(num(a.soldFees)||0);
 /* Servicing is real money spent on the watch and is already recorded per
    entry -- leaving it out of the maths overstates every result. Kept separate
    from acquisition basis because the two are treated differently for tax. */
@@ -729,8 +763,8 @@ const serviceTotal=a=>(a.serviceHistory||[]).reduce((s,e)=>s+(num(e.cost)||0),0)
 const totalInvested=a=>costBasis(a)+serviceTotal(a);
 const realizedPL=a=>netProceeds(a)-costBasis(a);
 const realizedNet=a=>netProceeds(a)-totalInvested(a);
-function heldDays(a){if(!a.acquiredDate||!a.soldDate)return null;
-  const d=(new Date(a.soldDate)-new Date(a.acquiredDate))/86400000;return isFinite(d)?Math.round(d):null;}
+function heldDays(a){const end=a.soldDate||a.settlementDate||a.lossDate;if(!a.acquiredDate||!end)return null;
+  const d=(new Date(end)-new Date(a.acquiredDate))/86400000;return isFinite(d)?Math.round(d):null;}
 function heldLabel(a){const d=heldDays(a);if(d==null)return "—";
   if(d<365)return d+" days";const y=d/365.25;return (y<10?y.toFixed(1):Math.round(y))+" yr";}
 
@@ -772,7 +806,7 @@ let ASSETS=[];
 let OWNER={...OWNER_DEFAULT};
 let MODE="local";           // 'local' | 'vault'
 let dirty=false;            // unsaved changes in vault-only mode
-let editingId=null, formPhotos=[], formServiceLog=[];
+let editingId=null, formPhotos=[], formServiceLog=[], formDocs=[];
 const ui={q:"",cat:"",rot:"",disp:"",cover:"",status:"",stars:"",sortKey:"marketValue",sortDir:-1};
 
 /* ── Utils ── */
@@ -783,12 +817,21 @@ const num=v=>{if(typeof v==="number")return isFinite(v)?v:null;const n=parseFloa
 const fmtMoney=(v,s=DISPLAY_CUR)=>{const n=num(v);return n==null?"":s+n.toLocaleString("en-US",{maximumFractionDigits:0});};
 function fmtDate(s){if(!s)return"";const d=new Date(s.length<=10?s+"T00:00:00":s);return isNaN(d)?esc(s):d.toLocaleDateString("en-US",{year:"numeric",month:"short",day:"numeric"});}
 const today=()=>new Date().toISOString().slice(0,10);
-const isHeld=a=>a.status!=="Sold";
+/* Lifecycle: Seeking → Owned → Sold / Lost. "Active" stays the stored value
+   for owned pieces so no record needs migrating; the UI labels it "Owned".
+   Seeking is a placeholder — it must never reach a money total or either
+   printed document, which is why ownership is an allowlist, not "not sold". */
+const isOwned=a=>!a.status||a.status==="Active";
+const isSeeking=a=>a.status==="Seeking";
+const isSold=a=>a.status==="Sold";
+const isLost=a=>a.status==="Lost";
+const isGone=a=>isSold(a)||isLost(a);
+const grailVal=a=>a&&a.grail===true?"Grail":((a&&a.grail)||"");
 const payoutFactor=a=>{const p=String(a.payoutPct||"");const m=p.match(/(\d+)\s*%/);
   if(m)return (+m[1])/100;
   return a.insurerName==="Hodinkee"?1.5:1;};
 const coverCeiling=a=>{const s=num(a.scheduledValue);return s==null?null:s*payoutFactor(a);};
-function coverageState(a){if(!isHeld(a))return"sold";
+function coverageState(a){if(isSold(a))return"sold";if(isLost(a))return"lost";if(isSeeking(a))return"na";
   const m=num(a.marketValue),c=coverCeiling(a);
   const ins=(a.insured===true||a.insured==="Yes");
   if(!ins&&c==null)return"none";
@@ -903,25 +946,26 @@ function currentRows(){let r=ASSETS.slice();const q=ui.q.trim().toLowerCase();
   if(ui.rot)r=r.filter(a=>a.rotation===ui.rot);
   if(ui.disp){if(ui.disp==="__none")r=r.filter(a=>!a.disposition);else r=r.filter(a=>a.disposition===ui.disp);}
   if(ui.cover)r=r.filter(a=>coverageState(a)===ui.cover);
-  if(ui.status)r=r.filter(a=>ui.status==="Active"?isHeld(a):!isHeld(a));
-  if(ui.stars)r=ui.stars==="__grail"?r.filter(a=>!!a.grail):ui.stars==="__none"?r.filter(a=>!(+a.stars)):r.filter(a=>(+a.stars||0)>=+ui.stars);
+  if(ui.status)r=r.filter(a=>ui.status==="Active"?isOwned(a):a.status===ui.status);
+  if(ui.stars)r=ui.stars==="__grail"?r.filter(a=>grailVal(a)!==""):ui.stars==="__holy"?r.filter(a=>grailVal(a)==="Holy grail"):ui.stars==="__none"?r.filter(a=>!(+a.stars)):r.filter(a=>(+a.stars||0)>=+ui.stars);
   const k=ui.sortKey,d=ui.sortDir;
-  r.sort((a,b)=>{if(["msrp","acquiredPrice","marketValue","scheduledValue"].includes(k)){return((num(a[k])??-Infinity)-(num(b[k])??-Infinity))*d;}let x=(a[k]||"").toString().toLowerCase(),y=(b[k]||"").toString().toLowerCase();return x<y?-1*d:x>y?1*d:0;});
+  r.sort((a,b)=>{if(["msrp","acquiredPrice","marketValue","scheduledValue","stars"].includes(k)){return((num(a[k])??-Infinity)-(num(b[k])??-Infinity))*d;}let x=(a[k]||"").toString().toLowerCase(),y=(b[k]||"").toString().toLowerCase();return x<y?-1*d:x>y?1*d:0;});
   return r;}
 
 /* ── Readout ── */
-function renderReadout(){const held=ASSETS.filter(isHeld);const sold=ASSETS.length-held.length;
+function renderReadout(){const held=ASSETS.filter(isOwned);const sold=ASSETS.filter(isSold).length,lost=ASSETS.filter(isLost).length,seeking=ASSETS.filter(isSeeking).length;
+  const extra=[sold?`+${sold} sold`:"",lost?`+${lost} lost`:"",seeking?`${seeking} seeking`:""].filter(Boolean).join(" · ");
   let paid=0,mkt=0,under=0,gap=0,uninsured=0;
   held.forEach(a=>{paid+=num(a.acquiredPrice)||0;mkt+=num(a.marketValue)||0;const cs=coverageState(a);if(cs==="none"||cs==="partial")uninsured++;if(cs==="under"){under++;gap+=num(a.marketValue)-coverCeiling(a);}});
   const pl=mkt-paid;
   const c=[];
-  c.push(`<div class="stat"><span class="k">Held</span><span class="v">${held.length}${sold?`<small>+${sold} sold</small>`:""}</span></div>`);
+  c.push(`<div class="stat"><span class="k">Held</span><span class="v">${held.length}${extra?`<small>${extra}</small>`:""}</span></div>`);
   c.push(`<div class="stat"><span class="k">Market value</span><span class="v">${mkt?fmtMoney(mkt):"—"}</span></div>`);
   c.push(`<div class="stat"><span class="k">Cost basis</span><span class="v">${paid?fmtMoney(paid):"—"}</span></div>`);
   c.push(`<div class="stat ${pl>=0?"pl-pos":"pl-neg"}"><span class="k">Unrealized</span><span class="v">${(pl>=0?"+":"−")+fmtMoney(Math.abs(pl))}</span></div>`);
-  const soldList=ASSETS.filter(a=>!isHeld(a));
+  const soldList=ASSETS.filter(isGone);
   if(soldList.length){const rz=soldList.reduce((s,a)=>s+realizedPL(a),0);
-    c.push(`<div class="stat ${rz>=0?"pl-pos":"pl-neg"}"><span class="k">Realized</span><span class="v">${(rz>=0?"+":"−")+fmtMoney(Math.abs(rz))}<small>· ${soldList.length} sold</small></span></div>`);}
+    c.push(`<div class="stat ${rz>=0?"pl-pos":"pl-neg"}"><span class="k">Realized</span><span class="v">${(rz>=0?"+":"−")+fmtMoney(Math.abs(rz))}<small>· ${soldList.length} disposed</small></span></div>`);}
   if(under>0)c.push(`<div class="stat flag warn"><span class="k">Underinsured · gap</span><span class="v">${under}<small>· ${fmtMoney(gap)}</small></span></div>`);
   if(uninsured>0)c.push(`<div class="stat"><span class="k">Uninsured</span><span class="v">${uninsured}</span></div>`);
   $("#readout").innerHTML=c.join("");}
@@ -931,6 +975,7 @@ const COLS=[
   {k:"__t",label:"",sort:false},
   {k:"maker",label:"Watch",sort:true},
   {k:"category",label:"Category",sort:true},
+  {k:"stars",label:"★",sort:true},
   {k:"reference",label:"Ref / Serial",sort:true},
   {k:"acquiredPrice",label:"Paid",sort:true,cls:"r"},
   {k:"marketValue",label:"Market",sort:true,cls:"r"},
@@ -941,28 +986,30 @@ const COLS=[
 function renderTable(){const rows=currentRows();
   $("#countNote").textContent=rows.length===ASSETS.length?`${ASSETS.length} piece${ASSETS.length!==1?"s":""}`:`${rows.length} of ${ASSETS.length}`;
   const wrap=$("#tableWrap");
-  if(ASSETS.length===0){wrap.innerHTML=`<div class="empty"><h2>Empty register</h2><p>Add a watch, or open an encrypted vault.</p><div class="row"><button class="btn primary" onclick="openForm()">＋ Add watch</button><button class="btn" onclick="importFlow()">Open vault</button></div></div>`;return;}
-  if(rows.length===0){wrap.innerHTML=`<div class="empty"><h2>No matches</h2><p>Nothing fits the current filters.</p><div class="row"><button class="btn" onclick="clearFilters()">Clear filters</button></div></div>`;return;}
+  if(ASSETS.length===0){wrap.innerHTML=`<div class="empty"><h2>Empty register</h2><p>Add a watch, or open an encrypted vault.</p><div class="row"><button class="btn primary" data-act="add">＋ Add watch</button><button class="btn" data-act="import">Open vault</button></div></div>`;return;}
+  if(rows.length===0){wrap.innerHTML=`<div class="empty"><h2>No matches</h2><p>Nothing fits the current filters.</p><div class="row"><button class="btn" data-act="clearFilters">Clear filters</button></div></div>`;return;}
   const thead=COLS.map(c=>{const ar=(ui.sortKey===c.k)?`<span class="arw">${ui.sortDir>0?"▲":"▼"}</span>`:"";return `<th class="${c.cls||""}${c.sort?"":" no-sort"}" ${c.sort?`data-sort="${c.k}"`:""}>${esc(c.label)}${ar}</th>`;}).join("");
   const body=rows.map(a=>{const cov=coverageState(a);
-    const covCell=cov==="sold"?`<span class="num u-muted2 u-f11">sold</span>`:
+    const covCell=cov==="sold"?`<span class="num u-muted2 u-f11">sold</span>`:cov==="lost"?`<span class="num u-muted2 u-f11">lost</span>`:
       (cov==="under"?`<span class="dot warn"></span><span class="num gap-up u-f11">Under ${fmtMoney(num(a.marketValue)-coverCeiling(a))}</span>`:
        cov==="ok"?`<span class="dot ok"></span><span class="num u-f11">OK</span>`:
        `<span class="dot na"></span><span class="num u-f11 u-muted2">—</span>`);
     const thumb=(a.photos&&a.photos[0]&&a.photos[0].thumbUrl)?`<img class="thumb" src="${a.photos[0].thumbUrl}">`:`<div class="thumb-empty">—</div>`;
+    const seek=isSeeking(a)?`<span class="chip seek">Seeking</span>`:"";
     const disp=a.disposition==="Heirloom"?`<span class="chip heir">Heirloom${a.heirloomTo?" · "+esc(a.heirloomTo):""}</span>`:a.disposition?`<span class="chip">${esc(a.disposition)}</span>`:"";
-    const gr=a.grail?`<span class="chip grail u-ml6">★ Grail</span>`:"";
+    const gv=grailVal(a);const gr=gv?`<span class="chip grail u-ml6">\u2605 ${gv}</span>`:"";
     const rat=a.rating&&a.rating!=="Hold"?`<span class="chip u-ml6 ${a.rating==="Sell"?"sell":""}">${esc(a.rating)}</span>`:"";
-    return `<tr data-id="${a.id}" class="${a.id===editingId?"sel":""} ${isHeld(a)?"":"sold"}">
+    return `<tr data-id="${a.id}" class="${a.id===editingId?"sel":""} ${isGone(a)?"sold":""}">
       <td>${thumb}</td>
       <td><div class="cell-obj"><span class="m">${esc(a.maker||"—")} ${esc(a.model||"")}</span><span class="s">${esc([a.rotation,a.caseSize,a.condition].filter(Boolean).join(" · "))}</span></div></td>
       <td><span class="chip rot">${esc(a.category||"—")}</span></td>
+      <td class="starcell">${starRead(a.stars)||`<span class="u-muted2 u-f11">—</span>`}</td>
       <td class="ref">${esc(a.reference||a.serial||"—")}</td>
       <td class="r money dim">${a.acquiredPrice?fmtMoney(a.acquiredPrice):"—"}</td>
       <td class="r money">${a.marketValue?fmtMoney(a.marketValue):"<span class='money dim'>—</span>"}</td>
       <td class="r money">${a.scheduledValue?fmtMoney(a.scheduledValue):"<span class='money dim'>—</span>"}</td>
       <td>${covCell}</td>
-      <td>${disp}${gr}${rat}</td></tr>`;}).join("");
+      <td>${seek}${disp}${gr}${rat}</td></tr>`;}).join("");
   wrap.innerHTML=`<table class="reg"><thead><tr>${thead}</tr></thead><tbody>${body}</tbody></table>`;
   $$("#tableWrap thead th[data-sort]").forEach(th=>th.addEventListener("click",()=>{const k=th.getAttribute("data-sort");if(ui.sortKey===k)ui.sortDir*=-1;else{ui.sortKey=k;ui.sortDir=1;}renderTable();}));
   $$("#tableWrap tbody tr").forEach(tr=>tr.addEventListener("click",()=>openDrawer(tr.getAttribute("data-id"))));}
@@ -977,15 +1024,17 @@ function openDrawer(id){const a=ASSETS.find(x=>x.id===id);if(!a)return;editingId
   else if(cov==="ok")cline=`<div class="cover-line ok"><span class="dot ok"></span>Scheduled at ${fmtMoney(a.scheduledValue)} — adequate</div>`;
   const w=warrantyInfo(a);let wline="";
   if(w)wline=`<div class="war-line ${w.state}">${w.state==="exp"?"Warranty expired "+fmtDate(w.exp.toISOString().slice(0,10)):w.state==="soon"?"Warranty expires "+fmtDate(w.exp.toISOString().slice(0,10))+` (${w.days}d)`:"Warranty active to "+fmtDate(w.exp.toISOString().slice(0,10))}</div>`;
-  const photos=(a.photos&&a.photos.length)?`<div class="photos">${a.photos.map(p=>`<img src="${p.thumbUrl||p.dataUrl}">`).join("")}</div>`:"";
+  const photos=(a.photos&&a.photos.length)?`<div class="photos">${a.photos.map((p,pi)=>`<img src="${p.thumbUrl||p.dataUrl}" data-pi="${pi}" alt="">`).join("")}</div>`:"";
+  const docsB=(a.documents&&a.documents.length)?`<div class="spec-sec"><div class="lbl">Documents</div><div class="doc-list">${a.documents.map(d=>`<button type="button" class="doc-row doc-get" data-doc="${d.id}"><span class="doc-ic">${d.mime==="application/pdf"?"PDF":"IMG"}</span><span class="doc-name">${esc(d.name)}</span><span class="doc-size">${fmtSize(d.size||0)}</span><span class="doc-save">save ↓</span></button>`).join("")}</div></div>`:"";
   const sec=(l,i)=>i.trim()?`<div class="spec-sec"><div class="lbl">${l}</div><dl class="kv">${i}</dl></div>`:"";
   const prose=(l,t)=>(t&&t.trim())?`<div class="spec-sec"><div class="lbl">${l}</div><div class="prose">${esc(t)}</div></div>`:"";
   const idB=[kv("Category",a.category),kv("Rotation",a.rotation),kv("Maker",a.maker),kv("Model",a.model),kv("Reference",a.reference,1),kv("Serial",a.serial,1),kv("Movement",a.movement,1),kv("Case",[a.caseMaterial,a.caseSize].filter(Boolean).join(", ")),kv("Condition",a.condition),kv("Box & papers",a.boxPapers)].join("");
   const acqB=[kv("Purchased",fmtDate(a.acquiredDate)),kv("MSRP",fmtMoney(a.msrp),1),kv("Paid",fmtMoney(a.acquiredPrice),1),kv("Source",a.seller)].join("");
   const valB=[kv("Market value",fmtMoney(a.marketValue),1),kv("Insured",(a.insured===true||a.insured==="Yes")?"Yes":"No"),kv("Scheduled value",fmtMoney(a.scheduledValue),1)].join("");
-  const dispB=[kv("Tier",a.disposition),kv("Designated to",a.heirloomTo),kv("Ledger rating",a.rating),kv("Personal rating",(+a.stars)?"★".repeat(+a.stars)+" ("+a.stars+" of 5)":""),kv("Grail",a.grail?"Yes":"")].join("");
+  const dispB=[kv("Tier",a.disposition),kv("Designated to",a.heirloomTo),kv("Ledger rating",a.rating),kv("Personal rating",(+a.stars)?"★".repeat(+a.stars)+" ("+a.stars+" of 5)":""),kv("Grail",grailVal(a))].join("");
   const svcB=[kv("Last serviced",fmtDate(a.lastService)),kv("Serviced by",a.serviceBy),kv("Warranty",a.warrantyYears?a.warrantyYears+" yr from "+fmtDate(a.warrantyStart):"")].join("");
-  const saleB=!isHeld(a)?[kv("Sold",fmtDate(a.soldDate)),kv("Sale price",fmtMoney(a.soldPrice),1)].join(""):"";
+  const saleB=isSold(a)?[kv("Sold",fmtDate(a.soldDate)),kv("Sale price",fmtMoney(a.soldPrice),1),kv("Selling fees",fmtMoney(a.soldFees),1),kv("Via",[a.soldChannel,a.soldTo].filter(Boolean).join(" · "))].join(""):"";
+  const lossB=isLost(a)?[kv("Loss",a.lossType),kv("Date of loss",fmtDate(a.lossDate)),kv("Police report",a.policeReport,1),kv("Claim no.",a.claimNumber,1),kv("Settlement",fmtMoney(a.settlementAmount),1),kv("Settled",fmtDate(a.settlementDate)),kv("Circumstances",a.lossNotes)].join(""):"";
   const dutiesPlusShip=(num(a.dutiesPaid)||0)+(num(a.shippingCost)||0);
   const costBasisLine=(dutiesPlusShip>0&&a.acquiredPrice!=null)?`<div class="cost-basis-line">Total cost basis (incl. duties/shipping): ${fmtMoney(num(a.acquiredPrice)+dutiesPlusShip)}${a.purchaseCurrency&&a.purchaseCurrency!=="USD"?" "+esc(a.purchaseCurrency):""}</div>`:"";
   const mechB=[kv("Movement type",a.movementType),kv("Movement base",a.movementBase),kv("Power reserve",a.powerReserve,1),kv("Jewels",a.jewelCount,1),kv("Complications",a.complications),kv("Water resistance",a.waterResistance,1)].join("");
@@ -995,18 +1044,18 @@ function openDrawer(id){const a=ASSETS.find(x=>x.id===id);if(!a)return;editingId
   const storB=[kv("Storage location",a.storageLocation),kv("Last worn",fmtDate(a.lastWornDate))].join("");
   const insB=[kv("Insurer",a.insurerName),kv("Policy/rider no.",a.policyNumber,1),kv("Renewal date",fmtDate(a.insuranceRenewal)),kv("Deductible",fmtMoney(a.deductible),1)].join("");
   const svcLog=(a.serviceHistory&&a.serviceHistory.length)?`<div class="spec-sec"><div class="lbl">Full service history</div>${a.serviceHistory.slice().sort((x,y)=>(y.date||"").localeCompare(x.date||"")).map(s=>svcRowHTML(s,null)).join("")}</div>`:"";
-  $("#dBody").innerHTML=photos+cline+wline+sec("Identification",idB)+sec("Acquisition",acqB)+costBasisLine+sec("Valuation & coverage",valB)+sec("Movement & mechanical",mechB)+sec("Aesthetics & construction",aesB)+sec("Provenance & documentation",provB)+sec("Financial detail",finB)+sec("Storage & wear",storB)+sec("Insurance detail",insB)+sec("Disposition",dispB)+sec("Service",svcB)+svcLog+(saleB?sec("Sale",saleB):"")+prose("Provenance",a.provenance)+prose("Notes",a.notes);
+  $("#dBody").innerHTML=photos+docsB+cline+wline+sec("Identification",idB)+sec("Acquisition",acqB)+costBasisLine+sec("Valuation & coverage",valB)+sec("Movement & mechanical",mechB)+sec("Aesthetics & construction",aesB)+sec("Provenance & documentation",provB)+sec("Financial detail",finB)+sec("Storage & wear",storB)+sec("Insurance detail",insB)+sec("Disposition",dispB)+sec("Service",svcB)+svcLog+sec("Sale",saleB)+sec("Loss & claim",lossB)+prose("Provenance",a.provenance)+prose("Notes",a.notes);
   $("#scrim").classList.add("on");$("#drawer").classList.add("on");$("#drawer").setAttribute("aria-hidden","false");}
 function closeDrawer(clear){$("#scrim").classList.remove("on");$("#drawer").classList.remove("on");$("#drawer").setAttribute("aria-hidden","true");if(clear!==false){editingId=null;renderTable();}}
 
 /* ── Form ── */
 function buildGrid(grid,defs){grid.innerHTML="";defs.forEach(f=>{if(f.sec){const s=document.createElement("div");s.className="sec-label";s.textContent=f.sec;grid.appendChild(s);return;}
   const wrap=document.createElement("div");wrap.className="field"+(f.full?" full":"");wrap.dataset.k=f.k;let ctl;
-  if(f.type==="toggle")ctl=`<input type="hidden" id="fld_${f.k}"><div class="tgl" data-for="${f.k}"><button type="button" class="tg" aria-pressed="false">\u2605 ${esc(f.label)}</button></div>`;
+  if(f.type==="tri")ctl=`<input type="hidden" id="fld_${f.k}"><div class="tgl" data-for="${f.k}">`+["Grail","Holy grail"].map(o=>`<button type="button" class="tg" data-val="${o}" aria-pressed="false">\u2605 ${o}</button>`).join("")+`</div>`;
   else if(f.type==="stars")ctl=`<input type="hidden" id="fld_${f.k}"><div class="stars" data-for="${f.k}">`+
     [1,2,3,4,5].map(n=>`<button type="button" class="st" data-v="${n}" aria-label="${n} star${n>1?"s":""}">★</button>`).join("")+
     `<button type="button" class="clr" data-v="0">clear</button></div>`;
-  else if(f.type==="select")ctl=`<select id="fld_${f.k}">${f.opts.map(o=>`<option value="${esc(o)}">${o===""?"—":esc(o)}</option>`).join("")}</select>`;
+  else if(f.type==="select")ctl=`<select id="fld_${f.k}">${f.opts.map(o=>{const v=Array.isArray(o)?o[0]:o,l=Array.isArray(o)?o[1]:o;return `<option value="${esc(v)}">${l===""?"—":esc(l)}</option>`;}).join("")}</select>`;
   else if(f.type==="textarea")ctl=`<textarea id="fld_${f.k}" placeholder="${esc(f.placeholder||"")}"></textarea>`;
   else if(f.type==="money")ctl=`<input id="fld_${f.k}" data-num inputmode="decimal" placeholder="${esc(f.placeholder||"0")}">`;
   else ctl=`<input id="fld_${f.k}" type="${f.type==="date"?"date":"text"}" class="${f.mono?"num":""}" placeholder="${esc(f.placeholder||"")}" autocomplete="off">`;
@@ -1014,11 +1063,26 @@ function buildGrid(grid,defs){grid.innerHTML="";defs.forEach(f=>{if(f.sec){const
 const setF=(k,v)=>{const el=$("#fld_"+k);if(el){el.value=(v==null?"":v);if(el.type==="hidden")paintStars();}};
 function paintStars(){$$(".stars").forEach(w=>{const v=+(($("#fld_"+w.dataset.for)||{}).value||0);
   w.querySelectorAll(".st").forEach(b=>b.classList.toggle("on",+b.dataset.v<=v));});
-  $$(".tgl").forEach(w=>{const on=!!(($("#fld_"+w.dataset.for)||{}).value);
-    const b=w.querySelector(".tg");b.classList.toggle("on",on);b.setAttribute("aria-pressed",on?"true":"false");});}
+  $$(".tgl").forEach(w=>{const v=(($("#fld_"+w.dataset.for)||{}).value)||"";
+    w.querySelectorAll(".tg").forEach(b=>{const on=b.dataset.val===v;b.classList.toggle("on",on);b.setAttribute("aria-pressed",on?"true":"false");});});}
 const starRead=n=>{n=+n||0;return n?`<span class="star-read">${"★".repeat(n)}<span class="off">${"★".repeat(5-n)}</span></span>`:"";};
 const getF=k=>{const el=$("#fld_"+k);return el?el.value.trim():"";};
-function renderPhotoStrip(){const strip=$("#photoStrip");if(!strip)return;strip.innerHTML=formPhotos.map((p,i)=>`<div class="pv"><img src="${p.thumbUrl||p.dataUrl}"><button data-i="${i}">×</button></div>`).join("")+`<button class="add-photo" id="addPhoto"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add</button>`;$("#addPhoto").addEventListener("click",()=>$("#photoInput").click());strip.querySelectorAll(".pv button").forEach(b=>b.addEventListener("click",()=>{formPhotos.splice(+b.dataset.i,1);renderPhotoStrip();}));}
+const fmtSize=n=>n>=1048576?(n/1048576).toFixed(1)+" MB":Math.max(1,Math.round(n/1024))+" KB";
+/* Documents are evidence — warranty cards, invoices, appraisals — so unlike
+   photos they are stored byte-for-byte as uploaded (image or PDF). They never
+   render in the table, so full size cannot re-trigger the renderer-memory bug
+   that forced photos to be downscaled. */
+const readDoc=file=>new Promise((res,rej)=>{const r=new FileReader();
+  r.onload=()=>res({id:uuid(),name:file.name,mime:file.type||"application/octet-stream",size:file.size,dataUrl:r.result});
+  r.onerror=()=>rej(new Error("File could not be read."));r.readAsDataURL(file);});
+function renderDocList(){const list=$("#docList");if(!list)return;
+  list.innerHTML=formDocs.map((d,i)=>`<div class="doc-row"><span class="doc-ic">${d.mime==="application/pdf"?"PDF":"IMG"}</span><span class="doc-name">${esc(d.name)}</span><span class="doc-size">${fmtSize(d.size||0)}</span><button type="button" class="doc-del" data-i="${i}" aria-label="Remove document">×</button></div>`).join("")+`<button type="button" class="add-doc" id="addDoc">+ Add document (image or PDF)</button>`;
+  $("#addDoc").addEventListener("click",()=>$("#docInput").click());
+  list.querySelectorAll(".doc-del").forEach(b=>b.addEventListener("click",()=>{formDocs.splice(+b.dataset.i,1);renderDocList();}));}
+let lbCur=null;
+function openLightbox(pic){if(!pic||!pic.dataUrl)return;lbCur=pic;$("#lbImg").src=pic.dataUrl;$("#lbName").textContent=pic.name||"photo";$("#lightbox").classList.add("on");}
+function renderPhotoStrip(){const strip=$("#photoStrip");if(!strip)return;strip.innerHTML=formPhotos.map((p,i)=>`<div class="pv"><img src="${p.thumbUrl||p.dataUrl}"><button data-i="${i}">×</button></div>`).join("")+`<button class="add-photo" id="addPhoto"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add</button>`;$("#addPhoto").addEventListener("click",()=>$("#photoInput").click());strip.querySelectorAll(".pv button").forEach(b=>b.addEventListener("click",()=>{formPhotos.splice(+b.dataset.i,1);renderPhotoStrip();}));
+  strip.querySelectorAll(".pv img").forEach((im,i2)=>im.addEventListener("click",()=>openLightbox(formPhotos[i2])));}
 function svcRowHTML(s,i){return `<div class="svc-row"><div class="f"><span class="l">Date</span><span class="v num">${esc(fmtDate(s.date))||"—"}</span></div><div class="f"><span class="l">By</span><span class="v">${esc(s.by)||"—"}</span></div><div class="f"><span class="l">Cost</span><span class="v num">${s.cost!=null&&s.cost!==""?fmtMoney(s.cost):"—"}</span></div><div class="f"><span class="l">Work</span><span class="v">${esc(s.work)||"—"}</span></div>${s.accuracy?`<div class="f"><span class="l">Accuracy</span><span class="v num">${esc(s.accuracy)}</span></div>`:""}${i!=null?`<button class="del" data-i="${i}" title="Remove">×</button>`:""}</div>`;}
 function renderServiceLog(){const list=$("#serviceLogList");if(!list)return;
   const sorted=formServiceLog.map((s,i)=>({...s,_i:i})).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
@@ -1033,30 +1097,36 @@ function addServiceEntry(){const date=$("#svcDate").value,by=$("#svcBy").value.t
 function openForm(asset){editingId=asset?asset.id:null;$("#formTitle").textContent=asset?"Edit watch":"Add watch";$("#pasteBox").value="";
   formPhotos=asset&&asset.photos?asset.photos.map(p=>({...p})):[];
   formServiceLog=asset&&asset.serviceHistory?asset.serviceHistory.map(s=>({...s})):[];
+  formDocs=asset&&asset.documents?asset.documents.map(d=>({...d})):[];
   buildGrid($("#formGrid"),FIELDS_CORE);
   const ps=document.createElement("div");ps.className="sec-label";ps.textContent="Photographs";$("#formGrid").appendChild(ps);
   const pf=document.createElement("div");pf.className="field full";pf.innerHTML=`<label>Images — stored locally, embedded in the vault</label><div class="photo-strip" id="photoStrip"></div><input type="file" id="photoInput" accept="image/*" multiple class="u-hide">`;$("#formGrid").appendChild(pf);
   renderPhotoStrip();
+  const dsec=document.createElement("div");dsec.className="sec-label";dsec.textContent="Documents";$("#formGrid").appendChild(dsec);
+  const dfld=document.createElement("div");dfld.className="field full";dfld.innerHTML=`<label>Invoices, warranty cards, appraisals — kept at full quality, never recompressed</label><div class="doc-list" id="docList"></div><input type="file" id="docInput" accept="image/*,application/pdf" multiple class="u-hide">`;$("#formGrid").appendChild(dfld);
+  renderDocList();
   buildGrid($("#formGridAdv"),FIELDS_ADV);
   renderServiceLog();
   $("#advancedWrap").style.display="none";$("#advToggle").textContent="+ Full detail — movement, aesthetics, provenance, financial, storage, insurance";
   FIELDS_CORE.concat(FIELDS_ADV).forEach(f=>{if(f.k&&f.def!=null)setF(f.k,f.def);});
-  if(asset)FIELD_KEYS.forEach(k=>{if(asset[k]===undefined)return;let v=asset[k];if(k==="insured")v=(asset.insured===true||asset.insured==="Yes")?"Yes":"No";if(k==="grail")v=asset.grail?"1":"";setF(k,v);});
+  if(asset)FIELD_KEYS.forEach(k=>{if(asset[k]===undefined)return;let v=asset[k];if(k==="insured")v=(asset.insured===true||asset.insured==="Yes")?"Yes":"No";if(k==="grail")v=grailVal(asset);setF(k,v);});
   paintStars();
   $$("#formGrid .field,#formGridAdv .field").forEach(el=>el.classList.remove("filled"));
   $("#menuScrim").classList.remove("on");$("#formScrim").classList.add("on");setTimeout(()=>$("#fld_maker")&&$("#fld_maker").focus(),40);}
-function collectForm(){const r={};FIELD_KEYS.forEach(k=>r[k]=getF(k));MONEY_KEYS.forEach(k=>{const n=num(r[k]);r[k]=n!=null?n:null;});r.warrantyYears=num(r.warrantyYears);r.stars=r.stars?+r.stars:null;r.grail=!!r.grail;r.insured=(r.insured==="Yes");r.photos=formPhotos.map(p=>({...p}));r.serviceHistory=formServiceLog.map(s=>({...s}));
+function collectForm(){const r={};FIELD_KEYS.forEach(k=>r[k]=getF(k));MONEY_KEYS.forEach(k=>{const n=num(r[k]);r[k]=n!=null?n:null;});r.warrantyYears=num(r.warrantyYears);r.stars=r.stars?+r.stars:null;r.grail=r.grail||"";r.insured=(r.insured==="Yes");r.photos=formPhotos.map(p=>({...p}));r.documents=formDocs.map(d=>({...d}));r.serviceHistory=formServiceLog.map(s=>({...s}));
   if(r.serviceHistory.length){const newest=r.serviceHistory.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||""))[0];if(newest.date)r.lastService=newest.date;if(newest.by)r.serviceBy=newest.by;}
   return r;}
 async function saveForm(again){const data=collectForm();if(!data.maker&&!data.model&&!data.reference){toast("Add at least a maker, model, or reference.",true);return;}
   /* Sale details with Status still "Active" would keep the piece in the held
      totals -- market value, cost basis, unrealised P&L and coverage all wrong,
      with nothing on screen to say so. Derive it rather than accept it. */
-  let autoSold=false;
-  if(data.status!=="Sold"&&(data.soldDate||data.soldPrice!=null)){data.status="Sold";autoSold=true;}
+  let autoMsg=null;
+  if(data.status==="Seeking"&&(data.acquiredDate||data.acquiredPrice!=null)){data.status="Active";autoMsg="Saved — marked Owned, because purchase details were entered.";}
+  if(data.status!=="Sold"&&data.status!=="Lost"&&(data.soldDate||data.soldPrice!=null)){data.status="Sold";autoMsg="Saved — marked Sold, because a sale date or price was entered.";}
+  if(data.status!=="Sold"&&data.status!=="Lost"&&(data.lossType||data.lossDate||data.settlementAmount!=null)){data.status="Lost";autoMsg="Saved — marked Lost, because loss details were entered.";}
   let rec;if(editingId){rec=ASSETS.find(a=>a.id===editingId);Object.assign(rec,data);rec.updatedAt=Date.now();}else{rec={id:uuid(),createdAt:Date.now(),updatedAt:Date.now(),...data};ASSETS.push(rec);}
   await persistAsset(rec);renderReadout();renderTable();updateDbNote();
-  toast(autoSold?"Saved — marked Sold, because a sale date or price was entered.":(editingId?"Updated.":"Saved."));
+  toast(autoMsg||(editingId?"Updated.":"Saved."));
   if(again){editingId=null;openForm();}else{$("#formScrim").classList.remove("on");editingId=null;renderTable();}}
 function applyParse(){const p=parseListing($("#pasteBox").value);const ks=Object.keys(p);if(!ks.length){toast("No structured fields found in that text.",true);return;}let n=0;ks.forEach(k=>{const el=$("#fld_"+k);if(el&&!el.value.trim()){el.value=p[k];el.closest(".field").classList.add("filled");n++;}});toast(n?`Filled ${n} field${n!==1?"s":""} — review before saving.`:"Fields already filled; nothing overwritten.");}
 /* ── Photos — downscaled on import, never stored at full resolution ──
@@ -1110,6 +1180,9 @@ async function persistOwner(){if(MODE==="local"){await saveStore();}else{markDir
 async function removeAsset(id){ASSETS=ASSETS.filter(x=>x.id!==id);if(MODE==="local")await saveStore();else markDirty();}
 
 /* ── Import / export ── */
+function dataUrlToBlob(u,mime){const i=u.indexOf(",");const meta=u.slice(0,i);const bytes=ub(u.slice(i+1));
+  return new Blob([bytes],{type:mime||(meta.match(/data:([^;]+)/)||[])[1]||"application/octet-stream"});}
+function downloadBlob(name,blob){const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(url);a.remove();},100);}
 function download(name,content,type){const blob=new Blob([content],{type:type||"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(url);a.remove();},100);}
 function bundle(){return{format:"ledger.register",v:2,exported:new Date().toISOString(),owner:OWNER,count:ASSETS.length,assets:ASSETS};}
 function exportPlain(){download(`watch-register-${today()}.json`,JSON.stringify(bundle(),null,2));toast("Plain JSON exported (unencrypted).",true);$("#menuScrim").classList.remove("on");}
@@ -1279,26 +1352,26 @@ function ownerHead(kind){const o=OWNER;const now=new Date();
     <div class="pd-owner"><b>${esc(o.name||"Owner")}</b><br>${esc(line)}${c2?"<br>"+esc(c2):""}</div>
     <div class="pd-meta"><span>Prepared ${now.toLocaleDateString("en-US",{year:"numeric",month:"long",day:"numeric"})}</span><span>Confidential</span></div></div>`;}
 function printInsurance(){$("#menuScrim").classList.remove("on");
-  const rows=ASSETS.filter(isHeld).slice().sort((a,b)=>(num(b.scheduledValue)||num(b.marketValue)||0)-(num(a.scheduledValue)||num(a.marketValue)||0));
+  const rows=ASSETS.filter(isOwned).slice().sort((a,b)=>(num(b.scheduledValue)||num(b.marketValue)||0)-(num(a.scheduledValue)||num(a.marketValue)||0));
   let tS=0,tM=0,under=0;
   const trs=rows.map((a,i)=>{const s=num(a.scheduledValue),m=num(a.marketValue);if(s)tS+=s;if(m)tM+=m;const flag=(s!=null&&m!=null&&m>s);if(flag)under++;
     return `<tr><td class="r">${i+1}</td><td>${esc([a.maker,a.model].filter(Boolean).join(" "))}</td><td>${esc(a.reference||"")}</td><td>${esc(a.serial||"—")}</td><td>${esc(a.condition||"")}</td><td class="r">${m!=null?fmtMoney(m):"—"}</td><td class="r ${flag?"pd-flag":""}">${s!=null?fmtMoney(s):"—"}${flag?" ▲":""}</td></tr>`;}).join("");
   const doc=ownerHead("Scheduled Property — Insurance Inventory")+`<table class="pd-table"><thead><tr><th class="r">#</th><th>Article</th><th>Reference</th><th>Serial</th><th>Condition</th><th class="r">Market value</th><th class="r">Scheduled value</th></tr></thead><tbody>${trs}</tbody><tfoot><tr><td colspan="5">Totals (${rows.length} held)</td><td class="r">${fmtMoney(tM)}</td><td class="r">${fmtMoney(tS)}</td></tr></tfoot></table>`+(under>0?`<div class="pd-note"><b class="pd-flag">▲ ${under} item${under!==1?"s":""} flagged:</b> current market value exceeds scheduled (insured) value. Consider raising the rider to close the gap.</div>`:"")+`<div class="pd-note">Market figures are the owner's estimates, not formal appraisals. Serial numbers left blank were not recorded at time of preparation.</div><div class="pd-foot">Generated locally by ${esc(WORDMARK)} on ${new Date().toLocaleString()}. No data transmitted.</div>`;
   deliverDoc("Insurance schedule","watch-register-insurance",doc);}
 function printDisposition(){$("#menuScrim").classList.remove("on");
-  const rows=ASSETS.filter(a=>!isHeld(a)).slice()
+  const rows=ASSETS.filter(isGone).slice()
     .sort((a,b)=>String(b.soldDate||"").localeCompare(String(a.soldDate||"")));
   if(!rows.length){toast("No sold pieces to report yet.",true);return;}
   let tB=0,tS=0,tG=0,tF=0,tN=0;
   const trs=rows.map((a,i)=>{
     const cb=costBasis(a),sv=serviceTotal(a),np=netProceeds(a);
-    const pl=realizedPL(a),pn=realizedNet(a),fee=num(a.soldFees)||0,gr=num(a.soldPrice)||0;
+    const pl=realizedPL(a),pn=realizedNet(a),fee=isLost(a)?0:(num(a.soldFees)||0),gr=isLost(a)?0:(num(a.soldPrice)||0);
     tB+=cb;tS+=sv;tG+=gr;tF+=fee;tN+=np;
-    const via=[a.soldChannel,a.soldTo].filter(Boolean).join(" · ");
+    const via=isLost(a)?["Insurance claim",a.lossType,a.claimNumber?("claim "+a.claimNumber):""].filter(Boolean).join(" · "):[a.soldChannel,a.soldTo].filter(Boolean).join(" · ");
     return `<tr><td class="r">${i+1}</td>`+
       `<td>${esc([a.maker,a.model].filter(Boolean).join(" "))}${via?`<div class="pd-sub">${esc(via)}</div>`:""}</td>`+
       `<td>${esc(a.acquiredDate||"—")}</td>`+
-      `<td>${esc(a.soldDate||"—")}</td>`+
+      `<td>${esc(a.soldDate||a.settlementDate||a.lossDate||"—")}</td>`+
       `<td>${heldLabel(a)}</td>`+
       `<td class="r">${cb?fmtMoney(cb):"—"}</td>`+
       `<td class="r">${sv?fmtMoney(sv):"—"}</td>`+
@@ -1318,13 +1391,13 @@ function printDisposition(){$("#menuScrim").classList.remove("on");
     `<td class="r"><b>${fmtMoney(tN)}</b></td>`+
     `<td class="r"><b>${(plAcq>=0?"+":"−")+fmtMoney(Math.abs(plAcq))}</b></td>`+
     `<td class="r"><b>${(plAll>=0?"+":"−")+fmtMoney(Math.abs(plAll))}</b></td></tr></tfoot></table>`+
-    `<div class="pd-note"><b>Basis</b> is purchase price plus duties and shipping where recorded. <b>Service</b> is the total of servicing entries logged against the piece during ownership. <b>Net</b> is gross sale price less selling fees. <b>Gain/loss</b> is net against acquisition basis; <b>after service</b> also deducts servicing, which is the true cost of ownership. Prepared from the owner&rsquo;s own records for accounting purposes. This is not tax advice, and collectibles may be treated differently from other capital assets &mdash; confirm treatment with your accountant. Set to print landscape.</div>`;
+    `<div class="pd-note"><b>Basis</b> is purchase price plus duties and shipping where recorded. <b>Service</b> is the total of servicing entries logged against the piece during ownership. <b>Net</b> is gross sale price less selling fees; for an insured loss it is the settlement received. <b>Gain/loss</b> is net against acquisition basis; <b>after service</b> also deducts servicing, which is the true cost of ownership. Prepared from the owner&rsquo;s own records for accounting purposes. This is not tax advice, and collectibles may be treated differently from other capital assets &mdash; confirm treatment with your accountant. Set to print landscape.</div>`;
   deliverDoc("Sales & disposition","watch-register-disposition",doc,true);}
 function printEstate(){$("#menuScrim").classList.remove("on");
-  const g={};ASSETS.filter(isHeld).forEach(a=>{const key=a.disposition==="Heirloom"?("Heirloom — "+(a.heirloomTo||"Unassigned beneficiary")):(a.disposition||"Unassigned");(g[key]=g[key]||[]).push(a);});
+  const g={};ASSETS.filter(isOwned).forEach(a=>{const key=a.disposition==="Heirloom"?("Heirloom — "+(a.heirloomTo||"Unassigned beneficiary")):(a.disposition||"Unassigned");(g[key]=g[key]||[]).push(a);});
   const order=Object.keys(g).sort((a,b)=>(a.startsWith("Heirloom")?0:1)-(b.startsWith("Heirloom")?0:1)||a.localeCompare(b));
   let body="";order.forEach(gr=>{body+=`<div class="estate-group-h">${esc(gr)} · ${g[gr].length} item${g[gr].length!==1?"s":""}</div>`;
-    g[gr].forEach(a=>{const grid=[["Grail",a.grail?"Yes":""],["Personal rating",(+a.stars)?"\u2605".repeat(+a.stars)+"  ("+a.stars+" of 5)":""],["Reference",a.reference],["Serial",a.serial],["Movement",a.movement],["Case",[a.caseMaterial,a.caseSize].filter(Boolean).join(", ")],["Box & papers",a.boxPapers],["Limited edition",a.limitedEditionNumber],["Acquired via",a.acquisitionChannel],["Purchased",fmtDate(a.acquiredDate)],["Source",a.seller],["Market value",fmtMoney(a.marketValue)],["Scheduled value",fmtMoney(a.scheduledValue)]].filter(x=>x[1]).map(x=>`<dt>${esc(x[0])}</dt><dd>${esc(x[1])}</dd>`).join("");
+    g[gr].forEach(a=>{const grid=[["Grail",grailVal(a)],["Personal rating",(+a.stars)?"\u2605".repeat(+a.stars)+"  ("+a.stars+" of 5)":""],["Reference",a.reference],["Serial",a.serial],["Movement",a.movement],["Case",[a.caseMaterial,a.caseSize].filter(Boolean).join(", ")],["Box & papers",a.boxPapers],["Limited edition",a.limitedEditionNumber],["Acquired via",a.acquisitionChannel],["Purchased",fmtDate(a.acquiredDate)],["Source",a.seller],["Market value",fmtMoney(a.marketValue)],["Scheduled value",fmtMoney(a.scheduledValue)]].filter(x=>x[1]).map(x=>`<dt>${esc(x[0])}</dt><dd>${esc(x[1])}</dd>`).join("");
       body+=`<div class="estate-item"><h3>${esc([a.maker,a.model].filter(Boolean).join(" "))}</h3><div class="ei-sub">${esc(a.category||"")}${a.rotation?" · "+esc(a.rotation):""}</div><dl class="ei-grid">${grid}</dl>${a.provenance&&a.provenance.trim()?`<div class="u-mt7 u-f105"><b>Provenance.</b> ${esc(a.provenance)}</div>`:""}${a.notes&&a.notes.trim()?`<div class="pd-fine"><b>Notes.</b> ${esc(a.notes)}</div>`:""}</div>`;});});
   const succ=OWNER.successionNotes||OWNER.executor||OWNER.passphraseCustody;
   const succBlock=succ?`<div class="estate-group-h">Succession</div><div class="pd-succ">${OWNER.executor?`<div><b>Executor / attorney:</b> ${esc(OWNER.executor)}</div>`:""}${OWNER.altName?`<div><b>Alternate contact:</b> ${esc(OWNER.altName)}${OWNER.altRelation?" ("+esc(OWNER.altRelation)+")":""}${OWNER.altPhone?" · "+esc(OWNER.altPhone):""}</div>`:""}${OWNER.passphraseCustody?`<div><b>Vault key custody:</b> ${esc(OWNER.passphraseCustody)}</div>`:""}${OWNER.successionNotes?`<div class="u-mt6">${esc(OWNER.successionNotes)}</div>`:""}</div>`:"";
@@ -1408,12 +1481,29 @@ function wire(){
   $("#fDisp").addEventListener("change",e=>{ui.disp=e.target.value;renderTable();});
   $("#fCover").addEventListener("change",e=>{ui.cover=e.target.value;renderTable();});
   $("#fStatus").addEventListener("change",e=>{ui.status=e.target.value;renderTable();});
+  /* Inline onclick handlers are dead under the packaged app's CSP nonce (same
+     mechanism that killed inline styles), so empty-state buttons delegate. */
+  $("#dBody").addEventListener("click",e=>{
+    const im=e.target.closest(".photos img[data-pi]");
+    if(im){const a=ASSETS.find(x=>x.id===editingId);if(a&&a.photos)openLightbox(a.photos[+im.dataset.pi]);return;}
+    const b=e.target.closest(".doc-get");if(!b)return;
+    const a=ASSETS.find(x=>x.id===editingId);if(!a)return;
+    const d=(a.documents||[]).find(x=>x.id===b.dataset.doc);if(!d)return;
+    downloadBlob(d.name,dataUrlToBlob(d.dataUrl,d.mime));
+    toast("Saved to Downloads — open it in Preview to view or print.");});
+  $("#lbClose").addEventListener("click",()=>$("#lightbox").classList.remove("on"));
+  $("#lightbox").addEventListener("click",e=>{if(e.target.id==="lightbox")$("#lightbox").classList.remove("on");});
+  $("#lbSave").addEventListener("click",()=>{if(!lbCur)return;
+    const nm=(lbCur.name||"photo")+(/\.\w{2,5}$/.test(lbCur.name||"")?"":".jpg");
+    downloadBlob(nm,dataUrlToBlob(lbCur.dataUrl,"image/jpeg"));toast("Full-size image saved to Downloads.");});
+  document.addEventListener("click",e=>{const b=e.target.closest("[data-act]");if(!b)return;
+    ({add:()=>openForm(),import:importFlow,clearFilters:clearFilters})[b.dataset.act]?.();});
   $("#fStars").addEventListener("change",e=>{ui.stars=e.target.value;renderTable();});
   document.addEventListener("click",e=>{const b=e.target.closest(".stars .st,.stars .clr");if(!b)return;
     const w=b.closest(".stars"),el=$("#fld_"+w.dataset.for),v=+b.dataset.v;
     el.value=(v&&+el.value===v)?"":String(v||"");paintStars();});
   document.addEventListener("click",e=>{const b=e.target.closest(".tgl .tg");if(!b)return;
-    const el=$("#fld_"+b.closest(".tgl").dataset.for);el.value=el.value?"":"1";paintStars();});
+    const el=$("#fld_"+b.closest(".tgl").dataset.for);el.value=(el.value===b.dataset.val)?"":b.dataset.val;paintStars();});
   $("#scrim").addEventListener("click",()=>closeDrawer());
   $("#dClose").addEventListener("click",()=>closeDrawer());
   $("#dEdit").addEventListener("click",()=>{const a=ASSETS.find(x=>x.id===editingId);if(a){closeDrawer(false);openForm(a);}});
@@ -1425,6 +1515,13 @@ function wire(){
   $("#parseBtn").addEventListener("click",applyParse);
   $("#advToggle").addEventListener("click",()=>{const wrap=$("#advancedWrap");const open=wrap.style.display!=="none";wrap.style.display=open?"none":"block";$("#advToggle").textContent=open?"+ Full detail — movement, aesthetics, provenance, financial, storage, insurance":"− Hide full detail";});
   $("#svcAddBtn").addEventListener("click",addServiceEntry);
+  document.addEventListener("change",async e=>{if(e.target&&e.target.id==="docInput"){const fs=Array.from(e.target.files||[]);let failed=0;
+    for(const f of fs){
+      if(f.size>26214400){toast(`"${f.name}" is over 25 MB — too large to embed in the register.`,true);continue;}
+      if(f.size>15728640)toast(`"${f.name}" is ${(f.size/1048576).toFixed(0)} MB — large files grow the vault.`,true);
+      try{formDocs.push(await readDoc(f));}catch(err){failed++;}}
+    renderDocList();e.target.value="";
+    if(failed)toast(`${failed} file${failed!==1?"s":""} couldn't be read.`,true);}});
   document.addEventListener("change",async e=>{if(e.target&&e.target.id==="photoInput"){const fs=Array.from(e.target.files||[]);let failed=0;
     for(const f of fs){try{formPhotos.push(await readImage(f));}catch(err){failed++;}}
     renderPhotoStrip();e.target.value="";
@@ -1458,7 +1555,7 @@ function wire(){
   $("#bannerX").addEventListener("click",()=>{$("#banner").style.display="none";try{localStorage.setItem("wr_banner","hid");}catch(e){}});
   $("#bannerExport").addEventListener("click",exportEncrypted);
   $$("#modeSeg button").forEach(b=>b.addEventListener("click",()=>setMode(b.dataset.mode)));
-  document.addEventListener("keydown",e=>{if(e.key==="Escape"){for(const id of ["#succScrim","#helpScrim","#confScrim","#pwScrim","#menuScrim","#ownerScrim","#formScrim"]){if($(id).classList.contains("on")){$(id).classList.remove("on");return;}}if($("#drawer").classList.contains("on"))closeDrawer();}});
+  document.addEventListener("keydown",e=>{if(e.key==="Escape"){if($("#lightbox").classList.contains("on")){$("#lightbox").classList.remove("on");return;}for(const id of ["#succScrim","#helpScrim","#confScrim","#pwScrim","#menuScrim","#ownerScrim","#formScrim"]){if($(id).classList.contains("on")){$(id).classList.remove("on");return;}}if($("#drawer").classList.contains("on"))closeDrawer();}});
   window.addEventListener("beforeunload",e=>{if(MODE==="vault"&&dirty){e.preventDefault();e.returnValue="";}});
   const fc=$("#fCat");CATEGORIES.forEach(c=>{const o=document.createElement("option");o.value=c;o.textContent=c;fc.appendChild(o);});
   const fr=$("#fRot");ROTATIONS.forEach(c=>{const o=document.createElement("option");o.value=c;o.textContent=c;fr.appendChild(o);});
