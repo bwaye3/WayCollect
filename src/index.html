@@ -268,6 +268,11 @@
   .faq-ul{padding-left:16px}
   .faq-ul li{margin-bottom:5px}
   .faq-defs div{margin-bottom:6px}
+  .cover-slot{display:flex;align-items:center;gap:14px}
+  .cover-pic{width:76px;height:76px;border-radius:3px;object-fit:cover;border:1px solid var(--line-2);flex:none;cursor:zoom-in}
+  .cover-empty{width:76px;height:76px;border-radius:3px;border:1px dashed var(--line-2);flex:none;display:flex;align-items:center;justify-content:center;color:var(--muted-2);font-family:var(--mono);font-size:9px;text-align:center;line-height:1.4}
+  .cover-acts{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+  .cover-note{font-size:11px;color:var(--muted-2);line-height:1.5}
   .starcell{white-space:nowrap}
   .starcell .star-read{font-size:11px}
   .chip.seek{border-color:var(--ok);color:var(--ok)}
@@ -873,7 +878,7 @@ let ASSETS=[];
 let OWNER={...OWNER_DEFAULT};
 let MODE="local";           // 'local' | 'vault'
 let dirty=false;            // unsaved changes in vault-only mode
-let editingId=null, formPhotos=[], formServiceLog=[], formDocs=[];
+let editingId=null, formPhotos=[], formServiceLog=[], formDocs=[], formThumb=null;
 const ui={q:"",cat:"",rot:"",disp:"",cover:"",status:"",stars:"",sortKey:"marketValue",sortDir:-1};
 
 /* ── Utils ── */
@@ -1061,7 +1066,8 @@ function renderTable(){const rows=currentRows();
       (cov==="under"?`<span class="dot warn"></span><span class="num gap-up u-f11">Under ${fmtMoney(num(a.marketValue)-coverCeiling(a))}</span>`:
        cov==="ok"?`<span class="dot ok"></span><span class="num u-f11">OK</span>`:
        `<span class="dot na"></span><span class="num u-f11 u-muted2">—</span>`);
-    const thumb=(a.photos&&a.photos[0]&&a.photos[0].thumbUrl)?`<img class="thumb" src="${a.photos[0].thumbUrl}">`:`<div class="thumb-empty">—</div>`;
+    const cp=coverPic(a);
+    const thumb=cp?`<img class="thumb" src="${cp.thumbUrl}">`:`<div class="thumb-empty">—</div>`;
     const seek=isSeeking(a)?`<span class="chip seek">Seeking</span>`:"";
     const disp=a.disposition==="Heirloom"?`<span class="chip heir">Heirloom${a.heirloomTo?" · "+esc(a.heirloomTo):""}</span>`:a.disposition?`<span class="chip">${esc(a.disposition)}</span>`:"";
     const gv=grailVal(a);const gr=gv?`<span class="chip grail u-ml6">\u2605 ${gv}</span>`:"";
@@ -1091,7 +1097,8 @@ function openDrawer(id){const a=ASSETS.find(x=>x.id===id);if(!a)return;editingId
   else if(cov==="ok")cline=`<div class="cover-line ok"><span class="dot ok"></span>Scheduled at ${fmtMoney(a.scheduledValue)} — adequate</div>`;
   const w=warrantyInfo(a);let wline="";
   if(w)wline=`<div class="war-line ${w.state}">${w.state==="exp"?"Warranty expired "+fmtDate(w.exp.toISOString().slice(0,10)):w.state==="soon"?"Warranty expires "+fmtDate(w.exp.toISOString().slice(0,10))+` (${w.days}d)`:"Warranty active to "+fmtDate(w.exp.toISOString().slice(0,10))}</div>`;
-  const photos=(a.photos&&a.photos.length)?`<div class="photos">${a.photos.map((p,pi)=>`<img src="${p.thumbUrl||p.dataUrl}" data-pi="${pi}" alt="">`).join("")}</div>`:"";
+  const gallery=(a.thumb&&a.thumb.thumbUrl)?[a.thumb].concat(a.photos||[]):(a.photos||[]);
+  const photos=gallery.length?`<div class="photos">${gallery.map((p,pi)=>`<img src="${p.thumbUrl||p.dataUrl}" data-pi="${pi}" alt="">`).join("")}</div>`:"";
   const docsB=(a.documents&&a.documents.length)?`<div class="spec-sec"><div class="lbl">Documents</div><div class="doc-list">${a.documents.map(d=>`<button type="button" class="doc-row doc-get" data-doc="${d.id}"><span class="doc-ic">${d.mime==="application/pdf"?"PDF":"IMG"}</span><span class="doc-name">${esc(d.name)}</span><span class="doc-size">${fmtSize(d.size||0)}</span><span class="doc-save">save ↓</span></button>`).join("")}</div></div>`:"";
   const sec=(l,i)=>i.trim()?`<div class="spec-sec"><div class="lbl">${l}</div><dl class="kv">${i}</dl></div>`:"";
   const prose=(l,t)=>(t&&t.trim())?`<div class="spec-sec"><div class="lbl">${l}</div><div class="prose">${esc(t)}</div></div>`:"";
@@ -1134,6 +1141,21 @@ function paintStars(){$$(".stars").forEach(w=>{const v=+(($("#fld_"+w.dataset.fo
     w.querySelectorAll(".tg").forEach(b=>{const on=b.dataset.val===v;b.classList.toggle("on",on);b.setAttribute("aria-pressed",on?"true":"false");});});}
 const starRead=n=>{n=+n||0;return n?`<span class="star-read">${"★".repeat(n)}<span class="off">${"★".repeat(5-n)}</span></span>`:"";};
 const getF=k=>{const el=$("#fld_"+k);return el?el.value.trim():"";};
+/* The list thumbnail used to be hardcoded to photos[0], so a photo added later
+   could never become the cover without deleting the whole set. It is now an
+   explicit slot. Falling back to photos[0] keeps every existing record
+   rendering exactly as before, so nothing needs migrating. */
+const coverPic=a=>(a.thumb&&a.thumb.thumbUrl)?a.thumb:((a.photos&&a.photos[0]&&a.photos[0].thumbUrl)?a.photos[0]:null);
+function renderCoverSlot(){const w=$("#coverSlot");if(!w)return;
+  w.innerHTML=(formThumb&&formThumb.thumbUrl
+      ?`<img class="cover-pic" id="coverPic" src="${formThumb.thumbUrl}" alt="Cover image">`
+      :`<div class="cover-empty">no<br>cover</div>`)+
+    `<div class="cover-acts"><button type="button" class="btn sm" id="coverPick">${formThumb?"Replace image":"Choose image"}</button>`+
+    (formThumb?`<button type="button" class="btn sm ghost" id="coverClear">Remove</button>`:"")+
+    `<div class="cover-note">${formThumb?"":"Falls back to your first photograph."}</div></div>`;
+  $("#coverPick").addEventListener("click",()=>$("#thumbInput").click());
+  const c=$("#coverClear");if(c)c.addEventListener("click",()=>{formThumb=null;renderCoverSlot();});
+  const im=$("#coverPic");if(im)im.addEventListener("click",()=>openLightbox(formThumb));}
 const fmtSize=n=>n>=1048576?(n/1048576).toFixed(1)+" MB":Math.max(1,Math.round(n/1024))+" KB";
 /* Documents are evidence — warranty cards, invoices, appraisals — so unlike
    photos they are stored byte-for-byte as uploaded (image or PDF). They never
@@ -1163,9 +1185,15 @@ function addServiceEntry(){const date=$("#svcDate").value,by=$("#svcBy").value.t
   renderServiceLog();}
 function openForm(asset){editingId=asset?asset.id:null;$("#formTitle").textContent=asset?"Edit watch":"Add watch";$("#pasteBox").value="";
   formPhotos=asset&&asset.photos?asset.photos.map(p=>({...p})):[];
+  formThumb=asset&&asset.thumb?{...asset.thumb}:null;
   formServiceLog=asset&&asset.serviceHistory?asset.serviceHistory.map(s=>({...s})):[];
   formDocs=asset&&asset.documents?asset.documents.map(d=>({...d})):[];
   buildGrid($("#formGrid"),FIELDS_CORE);
+  const cs=document.createElement("div");cs.className="sec-label";cs.textContent="Cover image";$("#formGrid").appendChild(cs);
+  const cf=document.createElement("div");cf.className="field full";
+  cf.innerHTML=`<label>The single picture shown for this watch in your register</label><div class="cover-slot" id="coverSlot"></div><input type="file" id="thumbInput" accept="image/*" class="u-hide">`;
+  $("#formGrid").appendChild(cf);
+  renderCoverSlot();
   const ps=document.createElement("div");ps.className="sec-label";ps.textContent="Photographs";$("#formGrid").appendChild(ps);
   const pf=document.createElement("div");pf.className="field full";pf.innerHTML=`<label>Images — stored locally, embedded in the vault</label><div class="photo-strip" id="photoStrip"></div><input type="file" id="photoInput" accept="image/*" multiple class="u-hide">`;$("#formGrid").appendChild(pf);
   renderPhotoStrip();
@@ -1180,7 +1208,7 @@ function openForm(asset){editingId=asset?asset.id:null;$("#formTitle").textConte
   paintStars();
   $$("#formGrid .field,#formGridAdv .field").forEach(el=>el.classList.remove("filled"));
   $("#menuScrim").classList.remove("on");$("#formScrim").classList.add("on");setTimeout(()=>$("#fld_maker")&&$("#fld_maker").focus(),40);}
-function collectForm(){const r={};FIELD_KEYS.forEach(k=>r[k]=getF(k));MONEY_KEYS.forEach(k=>{const n=num(r[k]);r[k]=n!=null?n:null;});r.warrantyYears=num(r.warrantyYears);r.stars=r.stars?+r.stars:null;r.grail=r.grail||"";r.insured=(r.insured==="Yes");r.photos=formPhotos.map(p=>({...p}));r.documents=formDocs.map(d=>({...d}));r.serviceHistory=formServiceLog.map(s=>({...s}));
+function collectForm(){const r={};FIELD_KEYS.forEach(k=>r[k]=getF(k));MONEY_KEYS.forEach(k=>{const n=num(r[k]);r[k]=n!=null?n:null;});r.warrantyYears=num(r.warrantyYears);r.stars=r.stars?+r.stars:null;r.grail=r.grail||"";r.insured=(r.insured==="Yes");r.photos=formPhotos.map(p=>({...p}));r.thumb=formThumb?{...formThumb}:null;r.documents=formDocs.map(d=>({...d}));r.serviceHistory=formServiceLog.map(s=>({...s}));
   if(r.serviceHistory.length){const newest=r.serviceHistory.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||""))[0];if(newest.date)r.lastService=newest.date;if(newest.by)r.serviceBy=newest.by;}
   return r;}
 async function saveForm(again){const data=collectForm();if(!data.maker&&!data.model&&!data.reference){toast("Add at least a maker, model, or reference.",true);return;}
@@ -1224,9 +1252,10 @@ const readImage=file=>new Promise((res,rej)=>{const r=new FileReader();
 async function migratePhotos(){
   let n=0,changed=false;
   for(const a of ASSETS){
-    if(!a.photos||!a.photos.length)continue;
+    const pics=(a.photos||[]).concat(a.thumb?[a.thumb]:[]);
+    if(!pics.length)continue;
     let touched=false;
-    for(const p of a.photos){
+    for(const p of pics){
       if(p.thumbUrl||!p.dataUrl)continue;
       try{const s=await shrinkPhoto(p.dataUrl);p.dataUrl=s.dataUrl;p.thumbUrl=s.thumbUrl;touched=true;n++;}
       catch(e){}
@@ -1552,7 +1581,7 @@ function wire(){
      mechanism that killed inline styles), so empty-state buttons delegate. */
   $("#dBody").addEventListener("click",e=>{
     const im=e.target.closest(".photos img[data-pi]");
-    if(im){const a=ASSETS.find(x=>x.id===editingId);if(a&&a.photos)openLightbox(a.photos[+im.dataset.pi]);return;}
+    if(im){const a=ASSETS.find(x=>x.id===editingId);if(a){const g=(a.thumb&&a.thumb.thumbUrl)?[a.thumb].concat(a.photos||[]):(a.photos||[]);openLightbox(g[+im.dataset.pi]);}return;}
     const b=e.target.closest(".doc-get");if(!b)return;
     const a=ASSETS.find(x=>x.id===editingId);if(!a)return;
     const d=(a.documents||[]).find(x=>x.id===b.dataset.doc);if(!d)return;
@@ -1582,6 +1611,9 @@ function wire(){
   $("#parseBtn").addEventListener("click",applyParse);
   $("#advToggle").addEventListener("click",()=>{const wrap=$("#advancedWrap");const open=wrap.style.display!=="none";wrap.style.display=open?"none":"block";$("#advToggle").textContent=open?"+ Full detail — movement, aesthetics, provenance, financial, storage, insurance":"− Hide full detail";});
   $("#svcAddBtn").addEventListener("click",addServiceEntry);
+  document.addEventListener("change",async e=>{if(e.target&&e.target.id==="thumbInput"){const f=(e.target.files||[])[0];
+    if(f){try{formThumb=await readImage(f);}catch(err){toast("That image couldn't be read.",true);}renderCoverSlot();}
+    e.target.value="";}});
   document.addEventListener("change",async e=>{if(e.target&&e.target.id==="docInput"){const fs=Array.from(e.target.files||[]);let failed=0;
     for(const f of fs){
       if(f.size>26214400){toast(`"${f.name}" is over 25 MB — too large to embed in the register.`,true);continue;}
