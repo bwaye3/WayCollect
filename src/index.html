@@ -235,6 +235,16 @@
 
   .dialog-text{color:var(--prose);font-size:14px;line-height:1.7}
   #confMsg{white-space:pre-line}
+  /* Personal rating. Ordinal and one click — a dropdown would mean open, read,
+     choose, close for something you set across the whole collection in a sitting. */
+  .stars{display:flex;align-items:center;gap:2px}
+  .stars .st{background:none;border:none;padding:2px 1px;cursor:pointer;font-size:19px;line-height:1;color:var(--line-2);transition:color .12s}
+  .stars .st:hover,.stars .st.hot{color:var(--brass-dim)}
+  .stars .st.on{color:var(--brass)}
+  .stars .clr{background:none;border:none;cursor:pointer;color:var(--muted-2);font-family:var(--mono);font-size:10px;margin-left:8px;padding:2px 4px}
+  .stars .clr:hover{color:var(--alert)}
+  .star-read{color:var(--brass);letter-spacing:.08em;font-size:12px}
+  .star-read .off{color:var(--line-2)}
   .dialog-text b{color:var(--text)}
   .pw-input{width:100%;background:var(--surface-2);border:1px solid var(--line);color:var(--text);border-radius:var(--r);padding:10px 12px;font-family:var(--mono);font-size:13px;letter-spacing:.05em;margin-top:14px}
   .pw-input:focus{border-color:var(--brass-dim);outline:none}
@@ -439,6 +449,7 @@
       <select class="sel" id="fRot"><option value="">Any rotation</option></select>
       <select class="sel" id="fDisp"><option value="">Any disposition</option><option value="Heirloom">Heirloom</option><option value="Tool-tier">Tool-tier</option><option value="__none">Unassigned</option></select>
       <select class="sel" id="fCover"><option value="">Any coverage</option><option value="under">Underinsured</option><option value="ok">Covered</option><option value="none">Uninsured</option></select>
+      <select class="sel" id="fStars"><option value="">Any rating</option><option value="5">★★★★★ grails</option><option value="4">★★★★ and up</option><option value="3">★★★ and up</option><option value="__none">Unrated</option></select>
       <select class="sel" id="fStatus"><option value="">Held &amp; sold</option><option value="Active">Held only</option><option value="Sold">Sold only</option></select>
     </div>
     <span class="count-note" id="countNote"></span>
@@ -638,7 +649,8 @@ const FIELDS_CORE=[
   {sec:"Disposition (estate)"},
   {k:"disposition",label:"Tier",type:"select",opts:["","Heirloom","Tool-tier"],def:""},
   {k:"heirloomTo",label:"Designated to",type:"text",placeholder:"Brooke"},
-  {k:"rating",label:"Ledger rating",type:"select",opts:["","Hold","Buy","Sell","Watch"],def:"Hold"},
+  {k:"rating",label:"Ledger rating",type:"select",opts:["","Hold","Buy","Sell","Watch"],def:"Hold",hint:"what you intend to do"},
+  {k:"stars",label:"Personal rating",type:"stars",def:"",hint:"how much you love it — 5 = grail"},
   {sec:"Service"},
   {k:"lastService",label:"Last serviced",type:"date"},
   {k:"serviceBy",label:"Serviced by",type:"text"},
@@ -752,7 +764,7 @@ let OWNER={...OWNER_DEFAULT};
 let MODE="local";           // 'local' | 'vault'
 let dirty=false;            // unsaved changes in vault-only mode
 let editingId=null, formPhotos=[], formServiceLog=[];
-const ui={q:"",cat:"",rot:"",disp:"",cover:"",status:"",sortKey:"marketValue",sortDir:-1};
+const ui={q:"",cat:"",rot:"",disp:"",cover:"",status:"",stars:"",sortKey:"marketValue",sortDir:-1};
 
 /* ── Utils ── */
 const $=s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll(s));
@@ -874,6 +886,7 @@ function currentRows(){let r=ASSETS.slice();const q=ui.q.trim().toLowerCase();
   if(ui.disp){if(ui.disp==="__none")r=r.filter(a=>!a.disposition);else r=r.filter(a=>a.disposition===ui.disp);}
   if(ui.cover)r=r.filter(a=>coverageState(a)===ui.cover);
   if(ui.status)r=r.filter(a=>ui.status==="Active"?isHeld(a):!isHeld(a));
+  if(ui.stars)r=ui.stars==="__none"?r.filter(a=>!(+a.stars)):r.filter(a=>(+a.stars||0)>=+ui.stars);
   const k=ui.sortKey,d=ui.sortDir;
   r.sort((a,b)=>{if(["msrp","acquiredPrice","marketValue","scheduledValue"].includes(k)){return((num(a[k])??-Infinity)-(num(b[k])??-Infinity))*d;}let x=(a[k]||"").toString().toLowerCase(),y=(b[k]||"").toString().toLowerCase();return x<y?-1*d:x>y?1*d:0;});
   return r;}
@@ -951,7 +964,7 @@ function openDrawer(id){const a=ASSETS.find(x=>x.id===id);if(!a)return;editingId
   const idB=[kv("Category",a.category),kv("Rotation",a.rotation),kv("Maker",a.maker),kv("Model",a.model),kv("Reference",a.reference,1),kv("Serial",a.serial,1),kv("Movement",a.movement,1),kv("Case",[a.caseMaterial,a.caseSize].filter(Boolean).join(", ")),kv("Condition",a.condition),kv("Box & papers",a.boxPapers)].join("");
   const acqB=[kv("Purchased",fmtDate(a.acquiredDate)),kv("MSRP",fmtMoney(a.msrp),1),kv("Paid",fmtMoney(a.acquiredPrice),1),kv("Source",a.seller)].join("");
   const valB=[kv("Market value",fmtMoney(a.marketValue),1),kv("Insured",(a.insured===true||a.insured==="Yes")?"Yes":"No"),kv("Scheduled value",fmtMoney(a.scheduledValue),1)].join("");
-  const dispB=[kv("Tier",a.disposition),kv("Designated to",a.heirloomTo),kv("Rating",a.rating)].join("");
+  const dispB=[kv("Tier",a.disposition),kv("Designated to",a.heirloomTo),kv("Ledger rating",a.rating),kv("Personal rating",(+a.stars)?"★".repeat(+a.stars)+" ("+a.stars+" of 5)":"")].join("");
   const svcB=[kv("Last serviced",fmtDate(a.lastService)),kv("Serviced by",a.serviceBy),kv("Warranty",a.warrantyYears?a.warrantyYears+" yr from "+fmtDate(a.warrantyStart):"")].join("");
   const saleB=!isHeld(a)?[kv("Sold",fmtDate(a.soldDate)),kv("Sale price",fmtMoney(a.soldPrice),1)].join(""):"";
   const dutiesPlusShip=(num(a.dutiesPaid)||0)+(num(a.shippingCost)||0);
@@ -970,12 +983,18 @@ function closeDrawer(clear){$("#scrim").classList.remove("on");$("#drawer").clas
 /* ── Form ── */
 function buildGrid(grid,defs){grid.innerHTML="";defs.forEach(f=>{if(f.sec){const s=document.createElement("div");s.className="sec-label";s.textContent=f.sec;grid.appendChild(s);return;}
   const wrap=document.createElement("div");wrap.className="field"+(f.full?" full":"");wrap.dataset.k=f.k;let ctl;
-  if(f.type==="select")ctl=`<select id="fld_${f.k}">${f.opts.map(o=>`<option value="${esc(o)}">${o===""?"—":esc(o)}</option>`).join("")}</select>`;
+  if(f.type==="stars")ctl=`<input type="hidden" id="fld_${f.k}"><div class="stars" data-for="${f.k}">`+
+    [1,2,3,4,5].map(n=>`<button type="button" class="st" data-v="${n}" aria-label="${n} star${n>1?"s":""}">★</button>`).join("")+
+    `<button type="button" class="clr" data-v="0">clear</button></div>`;
+  else if(f.type==="select")ctl=`<select id="fld_${f.k}">${f.opts.map(o=>`<option value="${esc(o)}">${o===""?"—":esc(o)}</option>`).join("")}</select>`;
   else if(f.type==="textarea")ctl=`<textarea id="fld_${f.k}" placeholder="${esc(f.placeholder||"")}"></textarea>`;
   else if(f.type==="money")ctl=`<input id="fld_${f.k}" data-num inputmode="decimal" placeholder="${esc(f.placeholder||"0")}">`;
   else ctl=`<input id="fld_${f.k}" type="${f.type==="date"?"date":"text"}" class="${f.mono?"num":""}" placeholder="${esc(f.placeholder||"")}" autocomplete="off">`;
   wrap.innerHTML=`<label for="fld_${f.k}">${esc(f.label)}</label>${ctl}${f.hint?`<div class="hint">${esc(f.hint)}</div>`:""}`;grid.appendChild(wrap);});}
-const setF=(k,v)=>{const el=$("#fld_"+k);if(el)el.value=(v==null?"":v);};
+const setF=(k,v)=>{const el=$("#fld_"+k);if(el){el.value=(v==null?"":v);if(el.type==="hidden")paintStars();}};
+function paintStars(){$$(".stars").forEach(w=>{const v=+(($("#fld_"+w.dataset.for)||{}).value||0);
+  w.querySelectorAll(".st").forEach(b=>b.classList.toggle("on",+b.dataset.v<=v));});}
+const starRead=n=>{n=+n||0;return n?`<span class="star-read">${"★".repeat(n)}<span class="off">${"★".repeat(5-n)}</span></span>`:"";};
 const getF=k=>{const el=$("#fld_"+k);return el?el.value.trim():"";};
 function renderPhotoStrip(){const strip=$("#photoStrip");if(!strip)return;strip.innerHTML=formPhotos.map((p,i)=>`<div class="pv"><img src="${p.thumbUrl||p.dataUrl}"><button data-i="${i}">×</button></div>`).join("")+`<button class="add-photo" id="addPhoto"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add</button>`;$("#addPhoto").addEventListener("click",()=>$("#photoInput").click());strip.querySelectorAll(".pv button").forEach(b=>b.addEventListener("click",()=>{formPhotos.splice(+b.dataset.i,1);renderPhotoStrip();}));}
 function svcRowHTML(s,i){return `<div class="svc-row"><div class="f"><span class="l">Date</span><span class="v num">${esc(fmtDate(s.date))||"—"}</span></div><div class="f"><span class="l">By</span><span class="v">${esc(s.by)||"—"}</span></div><div class="f"><span class="l">Cost</span><span class="v num">${s.cost!=null&&s.cost!==""?fmtMoney(s.cost):"—"}</span></div><div class="f"><span class="l">Work</span><span class="v">${esc(s.work)||"—"}</span></div>${s.accuracy?`<div class="f"><span class="l">Accuracy</span><span class="v num">${esc(s.accuracy)}</span></div>`:""}${i!=null?`<button class="del" data-i="${i}" title="Remove">×</button>`:""}</div>`;}
@@ -1001,9 +1020,10 @@ function openForm(asset){editingId=asset?asset.id:null;$("#formTitle").textConte
   $("#advancedWrap").style.display="none";$("#advToggle").textContent="+ Full detail — movement, aesthetics, provenance, financial, storage, insurance";
   FIELDS_CORE.concat(FIELDS_ADV).forEach(f=>{if(f.k&&f.def!=null)setF(f.k,f.def);});
   if(asset)FIELD_KEYS.forEach(k=>{if(asset[k]===undefined)return;let v=asset[k];if(k==="insured")v=(asset.insured===true||asset.insured==="Yes")?"Yes":"No";setF(k,v);});
+  paintStars();
   $$("#formGrid .field,#formGridAdv .field").forEach(el=>el.classList.remove("filled"));
   $("#menuScrim").classList.remove("on");$("#formScrim").classList.add("on");setTimeout(()=>$("#fld_maker")&&$("#fld_maker").focus(),40);}
-function collectForm(){const r={};FIELD_KEYS.forEach(k=>r[k]=getF(k));MONEY_KEYS.forEach(k=>{const n=num(r[k]);r[k]=n!=null?n:null;});r.warrantyYears=num(r.warrantyYears);r.insured=(r.insured==="Yes");r.photos=formPhotos.map(p=>({...p}));r.serviceHistory=formServiceLog.map(s=>({...s}));
+function collectForm(){const r={};FIELD_KEYS.forEach(k=>r[k]=getF(k));MONEY_KEYS.forEach(k=>{const n=num(r[k]);r[k]=n!=null?n:null;});r.warrantyYears=num(r.warrantyYears);r.stars=r.stars?+r.stars:null;r.insured=(r.insured==="Yes");r.photos=formPhotos.map(p=>({...p}));r.serviceHistory=formServiceLog.map(s=>({...s}));
   if(r.serviceHistory.length){const newest=r.serviceHistory.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||""))[0];if(newest.date)r.lastService=newest.date;if(newest.by)r.serviceBy=newest.by;}
   return r;}
 async function saveForm(again){const data=collectForm();if(!data.maker&&!data.model&&!data.reference){toast("Add at least a maker, model, or reference.",true);return;}
@@ -1282,7 +1302,7 @@ function printEstate(){$("#menuScrim").classList.remove("on");
   const g={};ASSETS.filter(isHeld).forEach(a=>{const key=a.disposition==="Heirloom"?("Heirloom — "+(a.heirloomTo||"Unassigned beneficiary")):(a.disposition||"Unassigned");(g[key]=g[key]||[]).push(a);});
   const order=Object.keys(g).sort((a,b)=>(a.startsWith("Heirloom")?0:1)-(b.startsWith("Heirloom")?0:1)||a.localeCompare(b));
   let body="";order.forEach(gr=>{body+=`<div class="estate-group-h">${esc(gr)} · ${g[gr].length} item${g[gr].length!==1?"s":""}</div>`;
-    g[gr].forEach(a=>{const grid=[["Reference",a.reference],["Serial",a.serial],["Movement",a.movement],["Case",[a.caseMaterial,a.caseSize].filter(Boolean).join(", ")],["Box & papers",a.boxPapers],["Limited edition",a.limitedEditionNumber],["Acquired via",a.acquisitionChannel],["Purchased",fmtDate(a.acquiredDate)],["Source",a.seller],["Market value",fmtMoney(a.marketValue)],["Scheduled value",fmtMoney(a.scheduledValue)]].filter(x=>x[1]).map(x=>`<dt>${esc(x[0])}</dt><dd>${esc(x[1])}</dd>`).join("");
+    g[gr].forEach(a=>{const grid=[["Personal rating",(+a.stars)?"\u2605".repeat(+a.stars)+"  ("+a.stars+" of 5)":""],["Reference",a.reference],["Serial",a.serial],["Movement",a.movement],["Case",[a.caseMaterial,a.caseSize].filter(Boolean).join(", ")],["Box & papers",a.boxPapers],["Limited edition",a.limitedEditionNumber],["Acquired via",a.acquisitionChannel],["Purchased",fmtDate(a.acquiredDate)],["Source",a.seller],["Market value",fmtMoney(a.marketValue)],["Scheduled value",fmtMoney(a.scheduledValue)]].filter(x=>x[1]).map(x=>`<dt>${esc(x[0])}</dt><dd>${esc(x[1])}</dd>`).join("");
       body+=`<div class="estate-item"><h3>${esc([a.maker,a.model].filter(Boolean).join(" "))}</h3><div class="ei-sub">${esc(a.category||"")}${a.rotation?" · "+esc(a.rotation):""}</div><dl class="ei-grid">${grid}</dl>${a.provenance&&a.provenance.trim()?`<div class="u-mt7 u-f105"><b>Provenance.</b> ${esc(a.provenance)}</div>`:""}${a.notes&&a.notes.trim()?`<div class="pd-fine"><b>Notes.</b> ${esc(a.notes)}</div>`:""}</div>`;});});
   const succ=OWNER.successionNotes||OWNER.executor||OWNER.passphraseCustody;
   const succBlock=succ?`<div class="estate-group-h">Succession</div><div class="pd-succ">${OWNER.executor?`<div><b>Executor / attorney:</b> ${esc(OWNER.executor)}</div>`:""}${OWNER.altName?`<div><b>Alternate contact:</b> ${esc(OWNER.altName)}${OWNER.altRelation?" ("+esc(OWNER.altRelation)+")":""}${OWNER.altPhone?" · "+esc(OWNER.altPhone):""}</div>`:""}${OWNER.passphraseCustody?`<div><b>Vault key custody:</b> ${esc(OWNER.passphraseCustody)}</div>`:""}${OWNER.successionNotes?`<div class="u-mt6">${esc(OWNER.successionNotes)}</div>`:""}</div>`:"";
@@ -1314,7 +1334,7 @@ function applyMode(fromInit){$$("#modeSeg button").forEach(b=>b.classList.toggle
   renderLock();updateDbNote();}
 
 /* ── misc ── */
-function clearFilters(){ui.q="";ui.cat="";ui.rot="";ui.disp="";ui.cover="";ui.status="";$("#search").value="";["fCat","fRot","fDisp","fCover","fStatus"].forEach(id=>$("#"+id).value="");renderTable();}
+function clearFilters(){ui.q="";ui.cat="";ui.rot="";ui.disp="";ui.cover="";ui.status="";ui.stars="";$("#search").value="";["fCat","fRot","fDisp","fCover","fStatus","fStars"].forEach(id=>$("#"+id).value="");renderTable();}
 window.clearFilters=clearFilters;window.openForm=openForm;
 function deleteAsset(id){const a=ASSETS.find(x=>x.id===id);if(!a)return;confirmDlg("Remove this watch?",`“${[a.maker,a.model].filter(Boolean).join(" ")||"Untitled"}” will be removed. Export a backup first if unsure.`,async()=>{await removeAsset(id);closeDrawer();renderReadout();renderTable();updateDbNote();toast("Removed.");});}
 function updateDbNote(){$("#dbNote").textContent=MODE==="vault"?(ASSETS.length+" in memory · no local trace"):(ASSETS.length+" record"+(ASSETS.length!==1?"s":"")+" · local DB");}
@@ -1366,6 +1386,10 @@ function wire(){
   $("#fDisp").addEventListener("change",e=>{ui.disp=e.target.value;renderTable();});
   $("#fCover").addEventListener("change",e=>{ui.cover=e.target.value;renderTable();});
   $("#fStatus").addEventListener("change",e=>{ui.status=e.target.value;renderTable();});
+  $("#fStars").addEventListener("change",e=>{ui.stars=e.target.value;renderTable();});
+  document.addEventListener("click",e=>{const b=e.target.closest(".stars .st,.stars .clr");if(!b)return;
+    const w=b.closest(".stars"),el=$("#fld_"+w.dataset.for),v=+b.dataset.v;
+    el.value=(v&&+el.value===v)?"":String(v||"");paintStars();});
   $("#scrim").addEventListener("click",()=>closeDrawer());
   $("#dClose").addEventListener("click",()=>closeDrawer());
   $("#dEdit").addEventListener("click",()=>{const a=ASSETS.find(x=>x.id===editingId);if(a){closeDrawer(false);openForm(a);}});
