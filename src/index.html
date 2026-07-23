@@ -1067,7 +1067,7 @@ async function persistOwner(){if(MODE==="local"){await saveStore();}else{markDir
 async function removeAsset(id){ASSETS=ASSETS.filter(x=>x.id!==id);if(MODE==="local")await saveStore();else markDirty();}
 
 /* ── Import / export ── */
-function download(name,content){const blob=new Blob([content],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(url);a.remove();},100);}
+function download(name,content,type){const blob=new Blob([content],{type:type||"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(url);a.remove();},100);}
 function bundle(){return{format:"ledger.register",v:2,exported:new Date().toISOString(),owner:OWNER,count:ASSETS.length,assets:ASSETS};}
 function exportPlain(){download(`watch-register-${today()}.json`,JSON.stringify(bundle(),null,2));toast("Plain JSON exported (unencrypted).",true);$("#menuScrim").classList.remove("on");}
 function exportEncrypted(){if(!cryptoAvailable()){toast("Encryption unavailable here — see How it works (use localhost).",true);return;}$("#menuScrim").classList.remove("on");
@@ -1182,6 +1182,43 @@ async function ingest(b){const inc=(b.assets||[]).filter(x=>x&&typeof x==="objec
     renderReadout();renderTable();renderLock();updateDbNote();toast(`Loaded ${inc.length} watch${inc.length!==1?"es":""}.`);});}
 
 /* ── Print ── */
+/* window.print() is a silent no-op in the packaged app -- WKWebView never
+   opens a dialog and reports no error (tauri#3066; there is still no print
+   API, tauri#4917). So instead of printing, write the same document out as a
+   self-contained HTML file through the blob-download path the vault export
+   already uses, which is proven to work here. The user opens it and hits Cmd-P.
+   One code path for browser and native, deliberately -- environment-dependent
+   behaviour is what caused this bug and the inline-style one before it. */
+function printCssText(){
+  let out="";
+  for(const sheet of document.styleSheets){
+    let rules=null; try{rules=sheet.cssRules;}catch(e){continue;}
+    if(!rules)continue;
+    for(const r of rules){
+      if(r.type===4 && String(r.conditionText||"").indexOf("print")>=0){
+        for(const inner of r.cssRules) out+=inner.cssText+"\n";
+      }else if(r.type===6 || String(r.cssText||"").indexOf("@page")===0){
+        out+=r.cssText+"\n";
+      }
+    }
+  }
+  return out;
+}
+function deliverDoc(title,slug,inner,wide){
+  const css=printCssText();
+  const html='<!doctype html>\n<html lang="en"><head><meta charset="utf-8">\n'+
+    '<title>'+esc(title)+'</title>\n<style>\n'+
+    '@page{margin:14mm 10mm;size:A4'+(wide?' landscape':'')+'}\n'+
+    'html,body{margin:0;background:#fff}\n'+
+    'body{padding:16mm;font-family:Georgia,"Times New Roman",serif;color:#111;font-size:12px}\n'+
+    css+
+    '\n.print-doc{display:block!important}\n'+
+    '@media screen{body{max-width:'+(wide?'1500px':'1100px')+';margin:0 auto}}\n'+
+    (wide?'.pd-table{font-size:9px}.pd-table th,.pd-table td{padding:5px 5px}\n':'')+
+    '</style></head>\n<body><div class="print-doc">'+inner+'</div></body></html>';
+  download(slug+"-"+today()+".html",html,"text/html");
+  toast("Saved. Open the file and press ⌘P to print or save as PDF.");
+}
 function ownerHead(kind){const o=OWNER;const now=new Date();
   const line=[o.name,o.address].filter(Boolean).join(" · ");
   const c2=[o.phone,o.email,o.dob?("DOB "+fmtDate(o.dob)):""].filter(Boolean).join(" · ");
@@ -1194,7 +1231,7 @@ function printInsurance(){$("#menuScrim").classList.remove("on");
   const trs=rows.map((a,i)=>{const s=num(a.scheduledValue),m=num(a.marketValue);if(s)tS+=s;if(m)tM+=m;const flag=(s!=null&&m!=null&&m>s);if(flag)under++;
     return `<tr><td class="r">${i+1}</td><td>${esc([a.maker,a.model].filter(Boolean).join(" "))}</td><td>${esc(a.reference||"")}</td><td>${esc(a.serial||"—")}</td><td>${esc(a.condition||"")}</td><td class="r">${m!=null?fmtMoney(m):"—"}</td><td class="r ${flag?"pd-flag":""}">${s!=null?fmtMoney(s):"—"}${flag?" ▲":""}</td></tr>`;}).join("");
   const doc=ownerHead("Scheduled Property — Insurance Inventory")+`<table class="pd-table"><thead><tr><th class="r">#</th><th>Article</th><th>Reference</th><th>Serial</th><th>Condition</th><th class="r">Market value</th><th class="r">Scheduled value</th></tr></thead><tbody>${trs}</tbody><tfoot><tr><td colspan="5">Totals (${rows.length} held)</td><td class="r">${fmtMoney(tM)}</td><td class="r">${fmtMoney(tS)}</td></tr></tfoot></table>`+(under>0?`<div class="pd-note"><b class="pd-flag">▲ ${under} item${under!==1?"s":""} flagged:</b> current market value exceeds scheduled (insured) value. Consider raising the rider to close the gap.</div>`:"")+`<div class="pd-note">Market figures are the owner's estimates, not formal appraisals. Serial numbers left blank were not recorded at time of preparation.</div><div class="pd-foot">Generated locally by ${esc(WORDMARK)} on ${new Date().toLocaleString()}. No data transmitted.</div>`;
-  $("#printDoc").innerHTML=doc;window.print();}
+  deliverDoc("Insurance schedule","watch-register-insurance",doc);}
 function printDisposition(){$("#menuScrim").classList.remove("on");
   const rows=ASSETS.filter(a=>!isHeld(a)).slice()
     .sort((a,b)=>String(b.soldDate||"").localeCompare(String(a.soldDate||"")));
@@ -1228,8 +1265,8 @@ function printDisposition(){$("#menuScrim").classList.remove("on");
     `<td class="r"><b>${fmtMoney(tN)}</b></td>`+
     `<td class="r"><b>${(plAcq>=0?"+":"−")+fmtMoney(Math.abs(plAcq))}</b></td>`+
     `<td class="r"><b>${(plAll>=0?"+":"−")+fmtMoney(Math.abs(plAll))}</b></td></tr></tfoot></table>`+
-    `<div class="pd-note"><b>Basis</b> is purchase price plus duties and shipping where recorded. <b>Service</b> is the total of servicing entries logged against the piece during ownership. <b>Net</b> is gross sale price less selling fees. <b>Gain/loss</b> is net against acquisition basis; <b>after service</b> also deducts servicing, which is the true cost of ownership. Prepared from the owner&rsquo;s own records for accounting purposes. This is not tax advice, and collectibles may be treated differently from other capital assets &mdash; confirm treatment with your accountant. Prints best in landscape.</div>`;
-  $("#printDoc").innerHTML=doc;window.print();}
+    `<div class="pd-note"><b>Basis</b> is purchase price plus duties and shipping where recorded. <b>Service</b> is the total of servicing entries logged against the piece during ownership. <b>Net</b> is gross sale price less selling fees. <b>Gain/loss</b> is net against acquisition basis; <b>after service</b> also deducts servicing, which is the true cost of ownership. Prepared from the owner&rsquo;s own records for accounting purposes. This is not tax advice, and collectibles may be treated differently from other capital assets &mdash; confirm treatment with your accountant. Set to print landscape.</div>`;
+  deliverDoc("Sales & disposition","watch-register-disposition",doc,true);}
 function printEstate(){$("#menuScrim").classList.remove("on");
   const g={};ASSETS.filter(isHeld).forEach(a=>{const key=a.disposition==="Heirloom"?("Heirloom — "+(a.heirloomTo||"Unassigned beneficiary")):(a.disposition||"Unassigned");(g[key]=g[key]||[]).push(a);});
   const order=Object.keys(g).sort((a,b)=>(a.startsWith("Heirloom")?0:1)-(b.startsWith("Heirloom")?0:1)||a.localeCompare(b));
@@ -1239,7 +1276,7 @@ function printEstate(){$("#menuScrim").classList.remove("on");
   const succ=OWNER.successionNotes||OWNER.executor||OWNER.passphraseCustody;
   const succBlock=succ?`<div class="estate-group-h">Succession</div><div class="pd-succ">${OWNER.executor?`<div><b>Executor / attorney:</b> ${esc(OWNER.executor)}</div>`:""}${OWNER.altName?`<div><b>Alternate contact:</b> ${esc(OWNER.altName)}${OWNER.altRelation?" ("+esc(OWNER.altRelation)+")":""}${OWNER.altPhone?" · "+esc(OWNER.altPhone):""}</div>`:""}${OWNER.passphraseCustody?`<div><b>Vault key custody:</b> ${esc(OWNER.passphraseCustody)}</div>`:""}${OWNER.successionNotes?`<div class="u-mt6">${esc(OWNER.successionNotes)}</div>`:""}</div>`:"";
   const doc=ownerHead("Estate Register — Disposition &amp; Provenance")+`<div class="pd-note u-mt0 u-mb10">Prepared for estate and beneficiary reference, grouped by designated tier and beneficiary.</div>`+body+succBlock+`<div class="pd-foot">Generated locally by ${esc(WORDMARK)} on ${new Date().toLocaleString()}. A personal record, not a legal instrument.</div>`;
-  $("#printDoc").innerHTML=doc;window.print();}
+  deliverDoc("Estate register","watch-register-estate",doc);}
 
 /* ── Dialogs ── */
 let pwState=null;
