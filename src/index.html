@@ -43,8 +43,8 @@
   :root{
     --ink:#0E0F12; --surface:#16181D; --surface-2:#1E2128; --surface-3:#23262E;
     --line:#2A2E37; --line-2:#363B45;
-    --text:#E7E4DC; --muted:#8B8F99; --muted-2:#828894; --prose:#B9BCC2;
-    --brass:#C6A15B; --brass-dim:#8A7038; --brass-wash:rgba(198,161,91,.10);
+    --text:#E7E4DC; --muted:#A8ABB2; --muted-2:#9297A2; --prose:#B9BCC2;
+    --brass:#C6A15B; --brass-dim:#A28442; --brass-wash:rgba(198,161,91,.10);
     --alert:#CB6E4C; --alert-wash:rgba(203,110,76,.12); --ok:#7C9A78;
     --mono:ui-monospace,"SF Mono","Cascadia Code","JetBrains Mono","Roboto Mono",Menlo,Consolas,monospace;
     --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
@@ -75,7 +75,7 @@
 
   .readout{display:flex;flex:1;align-items:stretch;overflow-x:auto}
   .stat{display:flex;flex-direction:column;justify-content:center;gap:2px;padding:10px 20px;border-right:1px solid var(--line);white-space:nowrap}
-  .stat .k{font-family:var(--mono);font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted-2)}
+  .stat .k{font-family:var(--mono);font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted-2)}
   .stat .v{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:19px;line-height:1;color:var(--text)}
   .stat .v small{font-size:10px;color:var(--muted);margin-left:3px}
   .stat.pl-pos .v{color:var(--ok)} .stat.pl-neg .v{color:var(--alert)}
@@ -125,7 +125,7 @@
 
   .table-wrap{overflow-x:auto}
   table.reg{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
-  table.reg thead th{position:sticky;top:0;z-index:5;background:var(--surface-2);text-align:left;font-family:var(--mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:500;padding:10px 14px;border-bottom:1px solid var(--line-2);white-space:nowrap;cursor:pointer;user-select:none}
+  table.reg thead th{position:sticky;top:0;z-index:5;background:var(--surface-2);text-align:left;font-family:var(--mono);font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:500;padding:10px 14px;border-bottom:1px solid var(--line-2);white-space:nowrap;cursor:pointer;user-select:none}
   table.reg thead th.no-sort{cursor:default}
   table.reg thead th .arw{color:var(--brass);margin-left:5px;font-size:9px}
   table.reg thead th.r,table.reg td.r{text-align:right}
@@ -141,7 +141,7 @@
   .money{font-family:var(--mono);font-variant-numeric:tabular-nums;color:var(--text)}
   .money.dim{color:var(--muted-2)}
   .gap-up{color:var(--alert)}
-  .chip{display:inline-block;font-family:var(--mono);font-size:9.5px;letter-spacing:.07em;text-transform:uppercase;padding:2px 7px;border-radius:999px;border:1px solid var(--line-2);color:var(--muted);white-space:nowrap}
+  .chip{display:inline-block;font-family:var(--mono);font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;padding:2px 7px;border-radius:999px;border:1px solid var(--line-2);color:var(--muted);white-space:nowrap}
   .chip.heir{border-color:var(--brass-dim);color:var(--brass)}
   .chip.sell{border-color:var(--alert);color:var(--alert)}
   .chip.rot{border-color:var(--line-2);color:var(--muted-2)}
@@ -198,13 +198,13 @@
   .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px 18px}
   .grid .full{grid-column:1/-1}
   .grid .two{grid-column:span 2}
-  .field label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+  .field label{display:block;font-family:var(--mono);font-size:11px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
   .field input,.field select,.field textarea{width:100%;background:var(--surface-2);border:1px solid var(--line);color:var(--text);border-radius:var(--r);padding:9px 11px;font-size:13px}
   .field input.num,.field input[data-num]{font-family:var(--mono);font-variant-numeric:tabular-nums}
   .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--brass-dim);outline:none}
   .field textarea{min-height:76px;resize:vertical;line-height:1.55}
   .field.filled input,.field.filled select,.field.filled textarea{border-color:var(--brass-dim);box-shadow:inset 0 0 0 1px var(--brass-wash)}
-  .field .hint{font-size:10px;color:var(--muted-2);margin-top:5px;font-family:var(--mono)}
+  .field .hint{font-size:11px;color:var(--muted-2);margin-top:5px;font-family:var(--mono)}
   .sec-label{grid-column:1/-1;font-family:var(--mono);font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--brass-dim);margin-top:8px;padding-bottom:6px;border-bottom:1px solid var(--line)}
   .adv-toggle-row{margin:6px 0 4px}
   .adv-toggle-row .btn{width:100%;justify-content:center;border-style:dashed}
@@ -212,7 +212,7 @@
   .service-log{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
   .svc-row{display:flex;flex-wrap:wrap;gap:3px 16px;align-items:center;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r);padding:9px 12px;font-size:12px}
   .svc-row .f{display:flex;flex-direction:column;gap:1px;min-width:64px}
-  .svc-row .f .l{font-family:var(--mono);font-size:8.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted-2)}
+  .svc-row .f .l{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted-2)}
   .svc-row .f .v{color:var(--text)}
   .svc-row .del{margin-left:auto;background:none;border:none;color:var(--muted-2);cursor:pointer;font-size:16px;line-height:1;padding:2px 4px}
   .svc-row .del:hover{color:var(--alert)}
@@ -271,6 +271,7 @@
     .pd-table td.r,.pd-table th.r{text-align:right;font-variant-numeric:tabular-nums;font-family:"Courier New",monospace}
     .pd-table tfoot td{border-top:1.5px solid #111;border-bottom:none;font-weight:bold;padding-top:8px}
     .pd-sub{font-size:8.5px;color:#666}
+    .pd-fine{margin-top:4px;font-size:10.5px;color:#555}
     .pd-note{font-family:Arial,Helvetica,sans-serif;font-size:9px;color:#555;margin-top:12px;line-height:1.5}
     .pd-flag{color:#a23a1a!important;font-weight:bold}
     .estate-item{border-bottom:1px solid #ccc;padding:12px 0;page-break-inside:avoid}
@@ -316,7 +317,6 @@
   .u-lh17{line-height:1.7}
   .thumb{width:34px;height:34px;border-radius:2px;object-fit:cover;border:1px solid var(--line-2)}
   .thumb-empty{width:34px;height:34px;border-radius:2px;border:1px dashed var(--line-2);display:flex;align-items:center;justify-content:center;color:var(--muted-2);font-size:9px;font-family:var(--mono)}
-  .pd-fine{margin-top:4px;font-size:10.5px;color:#555}
   .pd-succ{font-size:10.5px;line-height:1.6}
 
   /* ── Lock / setup overlay ── */
