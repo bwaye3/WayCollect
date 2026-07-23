@@ -387,9 +387,10 @@
     <div class="lock-step" id="stepMigrate">
       <p class="lock-msg">This version encrypts your collection on disk. Your existing <b id="migCount">0</b> records are currently stored unencrypted.</p>
       <p class="rc-warn">Export a plain backup first. Once encryption is set up, the unencrypted copy on this machine is erased, and only your passphrase or recovery key can open the register. Keep the backup somewhere safe until you have confirmed the new passphrase works.</p>
+      <div class="lock-err" id="migErr"></div>
       <div class="lock-actions">
-        <button class="btn" id="migBackup">Export backup first</button>
-        <button class="btn primary" id="migGo">Set a passphrase</button>
+        <button class="btn primary" id="migBackup">1 &mdash; Export backup</button>
+        <button class="btn" id="migGo" disabled>2 &mdash; Set a passphrase</button>
       </div>
     </div>
   </div>
@@ -1209,8 +1210,18 @@ function wire(){
   $("#newPass2").addEventListener("keydown",e=>{if(e.key==="Enter")createStep1();});
   $("#rcDone").addEventListener("click",createFinish);
   $("#rcCopy").addEventListener("click",async()=>{try{await navigator.clipboard.writeText($("#rcOut").textContent);toast("Recovery key copied — paste it somewhere permanent now.");}catch(e){toast("Copy failed; write it down instead.",true);}});
-  $("#migBackup").addEventListener("click",exportPlain);
-  $("#migGo").addEventListener("click",()=>beginCreate("Choose a passphrase. Your existing records will be encrypted with it, and the unencrypted copy erased."));
+  /* The migration erases the only readable copy of the data, and an older
+     build cannot read the sealed store, so rolling the app back does not roll
+     the data back. Refuse to start until a backup has actually been written. */
+  $("#migBackup").addEventListener("click",()=>{
+    exportPlain();
+    migBackedUp=true;
+    $("#migGo").disabled=false;
+    $("#migErr").textContent="";
+    toast("Backup exported. Keep it until you have confirmed the new passphrase works.");});
+  $("#migGo").addEventListener("click",()=>{
+    if(!migBackedUp){$("#migErr").textContent="Export the backup first — this step cannot be undone.";return;}
+    beginCreate("Choose a passphrase. Your existing records will be encrypted with it, and the unencrypted copy erased.");});
   $("#btnLock").addEventListener("click",()=>{if(MK)lockNow(false);else toast("Nothing to lock — no encrypted register open.",true);});
   $("#mChangePass").addEventListener("click",()=>{$("#menuScrim").classList.remove("on");
     if(!MK){toast("Unlock first.",true);return;}
@@ -1284,7 +1295,7 @@ function wire(){
 
 /* ── Init ── */
 /* ── Lock / unlock / first-run setup ── */
-let idleTimer=null, pendingMigration=null;
+let idleTimer=null, pendingMigration=null, migBackedUp=false;
 const idleMins=()=>{let v=15;try{v=parseInt(localStorage.getItem("wr_idle")||"15",10);}catch(e){}return isNaN(v)?15:v;};
 function clearIdle(){if(idleTimer){clearTimeout(idleTimer);idleTimer=null;}}
 function resetIdle(){
