@@ -270,6 +270,7 @@
     .pd-table td{padding:6px 7px;border-bottom:.5px solid #bbb;vertical-align:top}
     .pd-table td.r,.pd-table th.r{text-align:right;font-variant-numeric:tabular-nums;font-family:"Courier New",monospace}
     .pd-table tfoot td{border-top:1.5px solid #111;border-bottom:none;font-weight:bold;padding-top:8px}
+    .pd-sub{font-size:8.5px;color:#666}
     .pd-note{font-family:Arial,Helvetica,sans-serif;font-size:9px;color:#555;margin-top:12px;line-height:1.5}
     .pd-flag{color:#a23a1a!important;font-weight:bold}
     .estate-item{border-bottom:1px solid #ccc;padding:12px 0;page-break-inside:avoid}
@@ -644,6 +645,8 @@ const FIELDS_CORE=[
   {k:"soldDate",label:"Date of sale",type:"date"},
   {k:"soldPrice",label:"Sale price",type:"money",hint:"gross, before fees"},
   {k:"soldFees",label:"Selling fees / commission",type:"money",hint:"auction, dealer, platform, shipping"},
+  {k:"soldChannel",label:"Sold via",type:"select",opts:["","Private sale","Dealer","Auction house","Marketplace (Chrono24, eBay)","Forum / community","Trade-in","Consignment"],def:""},
+  {k:"soldTo",label:"Buyer / consignee",type:"text"},
   {sec:"Provenance & notes"},
   {k:"provenance",label:"Provenance",type:"textarea",full:true,placeholder:"Delivery card, prior owners, service papers, chain of custody…"},
   {k:"notes",label:"Notes",type:"textarea",full:true},
@@ -697,7 +700,13 @@ const MONEY_KEYS=["msrp","acquiredPrice","marketValue","scheduledValue","soldPri
    every result and is the wrong number to report. */
 const costBasis=a=>(num(a.acquiredPrice)||0)+(num(a.dutiesPaid)||0)+(num(a.shippingCost)||0);
 const netProceeds=a=>(num(a.soldPrice)||0)-(num(a.soldFees)||0);
+/* Servicing is real money spent on the watch and is already recorded per
+   entry -- leaving it out of the maths overstates every result. Kept separate
+   from acquisition basis because the two are treated differently for tax. */
+const serviceTotal=a=>(a.serviceHistory||[]).reduce((s,e)=>s+(num(e.cost)||0),0);
+const totalInvested=a=>costBasis(a)+serviceTotal(a);
 const realizedPL=a=>netProceeds(a)-costBasis(a);
+const realizedNet=a=>netProceeds(a)-totalInvested(a);
 function heldDays(a){if(!a.acquiredDate||!a.soldDate)return null;
   const d=(new Date(a.soldDate)-new Date(a.acquiredDate))/86400000;return isFinite(d)?Math.round(d):null;}
 function heldLabel(a){const d=heldDays(a);if(d==null)return "—";
@@ -997,8 +1006,14 @@ function collectForm(){const r={};FIELD_KEYS.forEach(k=>r[k]=getF(k));MONEY_KEYS
   if(r.serviceHistory.length){const newest=r.serviceHistory.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||""))[0];if(newest.date)r.lastService=newest.date;if(newest.by)r.serviceBy=newest.by;}
   return r;}
 async function saveForm(again){const data=collectForm();if(!data.maker&&!data.model&&!data.reference){toast("Add at least a maker, model, or reference.",true);return;}
+  /* Sale details with Status still "Active" would keep the piece in the held
+     totals -- market value, cost basis, unrealised P&L and coverage all wrong,
+     with nothing on screen to say so. Derive it rather than accept it. */
+  let autoSold=false;
+  if(data.status!=="Sold"&&(data.soldDate||data.soldPrice!=null)){data.status="Sold";autoSold=true;}
   let rec;if(editingId){rec=ASSETS.find(a=>a.id===editingId);Object.assign(rec,data);rec.updatedAt=Date.now();}else{rec={id:uuid(),createdAt:Date.now(),updatedAt:Date.now(),...data};ASSETS.push(rec);}
-  await persistAsset(rec);renderReadout();renderTable();updateDbNote();toast(editingId?"Updated.":"Saved.");
+  await persistAsset(rec);renderReadout();renderTable();updateDbNote();
+  toast(autoSold?"Saved — marked Sold, because a sale date or price was entered.":(editingId?"Updated.":"Saved."));
   if(again){editingId=null;openForm();}else{$("#formScrim").classList.remove("on");editingId=null;renderTable();}}
 function applyParse(){const p=parseListing($("#pasteBox").value);const ks=Object.keys(p);if(!ks.length){toast("No structured fields found in that text.",true);return;}let n=0;ks.forEach(k=>{const el=$("#fld_"+k);if(el&&!el.value.trim()){el.value=p[k];el.closest(".field").classList.add("filled");n++;}});toast(n?`Filled ${n} field${n!==1?"s":""} — review before saving.`:"Fields already filled; nothing overwritten.");}
 /* ── Photos — downscaled on import, never stored at full resolution ──
@@ -1184,29 +1199,36 @@ function printDisposition(){$("#menuScrim").classList.remove("on");
   const rows=ASSETS.filter(a=>!isHeld(a)).slice()
     .sort((a,b)=>String(b.soldDate||"").localeCompare(String(a.soldDate||"")));
   if(!rows.length){toast("No sold pieces to report yet.",true);return;}
-  let tC=0,tP=0,tF=0;
+  let tB=0,tS=0,tG=0,tF=0,tN=0;
   const trs=rows.map((a,i)=>{
-    const cb=costBasis(a),np=netProceeds(a),pl=realizedPL(a),fee=num(a.soldFees)||0;
-    tC+=cb;tP+=np;tF+=fee;
+    const cb=costBasis(a),sv=serviceTotal(a),np=netProceeds(a);
+    const pl=realizedPL(a),pn=realizedNet(a),fee=num(a.soldFees)||0,gr=num(a.soldPrice)||0;
+    tB+=cb;tS+=sv;tG+=gr;tF+=fee;tN+=np;
+    const via=[a.soldChannel,a.soldTo].filter(Boolean).join(" · ");
     return `<tr><td class="r">${i+1}</td>`+
-      `<td>${esc([a.maker,a.model].filter(Boolean).join(" "))}</td>`+
+      `<td>${esc([a.maker,a.model].filter(Boolean).join(" "))}${via?`<div class="pd-sub">${esc(via)}</div>`:""}</td>`+
       `<td>${esc(a.acquiredDate||"—")}</td>`+
-      `<td class="r">${cb?fmtMoney(cb):"—"}</td>`+
       `<td>${esc(a.soldDate||"—")}</td>`+
-      `<td class="r">${a.soldPrice?fmtMoney(num(a.soldPrice)):"—"}</td>`+
+      `<td>${heldLabel(a)}</td>`+
+      `<td class="r">${cb?fmtMoney(cb):"—"}</td>`+
+      `<td class="r">${sv?fmtMoney(sv):"—"}</td>`+
+      `<td class="r">${gr?fmtMoney(gr):"—"}</td>`+
       `<td class="r">${fee?fmtMoney(fee):"—"}</td>`+
       `<td class="r">${np?fmtMoney(np):"—"}</td>`+
-      `<td class="r"><b>${(pl>=0?"+":"−")+fmtMoney(Math.abs(pl))}</b></td>`+
-      `<td>${heldLabel(a)}</td></tr>`;}).join("");
-  const total=tP-tC;
+      `<td class="r">${(pl>=0?"+":"−")+fmtMoney(Math.abs(pl))}</td>`+
+      `<td class="r"><b>${(pn>=0?"+":"−")+fmtMoney(Math.abs(pn))}</b></td></tr>`;}).join("");
+  const plAcq=tN-tB, plAll=tN-(tB+tS);
   const doc=ownerHead("Sales & Disposition — Realized Gains and Losses")+
-    `<table class="pd-table"><thead><tr><th class="r">#</th><th>Article</th><th>Acquired</th>`+
-    `<th class="r">Cost basis</th><th>Sold</th><th class="r">Gross</th><th class="r">Fees</th>`+
-    `<th class="r">Net proceeds</th><th class="r">Gain / loss</th><th>Held</th></tr></thead>`+
-    `<tbody>${trs}</tbody><tfoot><tr><td></td><td><b>${rows.length} disposal${rows.length!==1?"s":""}</b></td><td></td>`+
-    `<td class="r"><b>${fmtMoney(tC)}</b></td><td></td><td></td><td class="r"><b>${fmtMoney(tF)}</b></td>`+
-    `<td class="r"><b>${fmtMoney(tP)}</b></td><td class="r"><b>${(total>=0?"+":"−")+fmtMoney(Math.abs(total))}</b></td><td></td></tr></tfoot></table>`+
-    `<div class="pd-note">Cost basis includes purchase price plus duties and shipping where recorded. Net proceeds are gross sale price less selling fees. Prepared from the owner's own records for accounting purposes; it is not tax advice, and collectibles may be treated differently from other capital assets — confirm treatment with your accountant.</div>`;
+    `<table class="pd-table"><thead><tr><th class="r">#</th><th>Article</th><th>Acquired</th><th>Sold</th><th>Held</th>`+
+    `<th class="r">Basis</th><th class="r">Service</th><th class="r">Gross</th><th class="r">Fees</th>`+
+    `<th class="r">Net</th><th class="r">Gain/loss</th><th class="r">After service</th></tr></thead>`+
+    `<tbody>${trs}</tbody><tfoot><tr><td></td><td><b>${rows.length} disposal${rows.length!==1?"s":""}</b></td><td></td><td></td><td></td>`+
+    `<td class="r"><b>${fmtMoney(tB)}</b></td><td class="r"><b>${fmtMoney(tS)}</b></td>`+
+    `<td class="r"><b>${fmtMoney(tG)}</b></td><td class="r"><b>${fmtMoney(tF)}</b></td>`+
+    `<td class="r"><b>${fmtMoney(tN)}</b></td>`+
+    `<td class="r"><b>${(plAcq>=0?"+":"−")+fmtMoney(Math.abs(plAcq))}</b></td>`+
+    `<td class="r"><b>${(plAll>=0?"+":"−")+fmtMoney(Math.abs(plAll))}</b></td></tr></tfoot></table>`+
+    `<div class="pd-note"><b>Basis</b> is purchase price plus duties and shipping where recorded. <b>Service</b> is the total of servicing entries logged against the piece during ownership. <b>Net</b> is gross sale price less selling fees. <b>Gain/loss</b> is net against acquisition basis; <b>after service</b> also deducts servicing, which is the true cost of ownership. Prepared from the owner&rsquo;s own records for accounting purposes. This is not tax advice, and collectibles may be treated differently from other capital assets &mdash; confirm treatment with your accountant. Prints best in landscape.</div>`;
   $("#printDoc").innerHTML=doc;window.print();}
 function printEstate(){$("#menuScrim").classList.remove("on");
   const g={};ASSETS.filter(isHeld).forEach(a=>{const key=a.disposition==="Heirloom"?("Heirloom — "+(a.heirloomTo||"Unassigned beneficiary")):(a.disposition||"Unassigned");(g[key]=g[key]||[]).push(a);});
