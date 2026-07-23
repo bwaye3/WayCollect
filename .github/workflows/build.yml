@@ -25,6 +25,7 @@ jobs:
   # draft while the user was looking at the first. Now the matrix uploads into
   # a release id that already exists.
   create-release:
+    needs: verify
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -50,8 +51,22 @@ jobs:
             });
             return data.id;
 
+  # Gate releases on the frontend checks. A dead inline style or a version
+  # mismatch compiles and packages perfectly, so the build itself would never
+  # catch it -- it would just ship. cargo check is deliberately NOT a gate
+  # here: broken Rust already fails the build a few steps later, so requiring
+  # it twice would only make releases slower.
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+      - run: python3 tools/check-frontend.py
+
   build:
-    needs: create-release
+    needs: [create-release, verify]
     permissions:
       contents: write
     strategy:

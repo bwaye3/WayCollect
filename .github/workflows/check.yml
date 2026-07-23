@@ -1,0 +1,38 @@
+name: Check
+
+# Fast feedback that produces NOTHING to download. Runs on ordinary branch
+# pushes so the Rust and frontend can be verified without cutting a release.
+# The release workflow only fires on tags, so the two never collide.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch: {}
+
+jobs:
+  frontend:
+    name: Frontend and manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: lts/*
+      - name: Run checks
+        run: python3 tools/check-frontend.py
+
+  rust:
+    name: cargo check
+    # macOS because that is the platform whose webview this app actually
+    # targets; checking on Linux would need webkit2gtk system packages.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+      - name: cargo check
+        working-directory: src-tauri
+        run: cargo check --locked --all-targets
