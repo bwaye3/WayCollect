@@ -94,4 +94,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           releaseId: ${{ needs.create-release.outputs.release_id }}
+          # Also attach the installers as workflow artifacts. Draft release
+          # assets require push access to read; workflow artifacts only need
+          # read access, so tooling authenticated with a pull-only token can
+          # fetch a build without the release being published first.
+          uploadWorkflowArtifacts: true
           args: ${{ matrix.args }}
