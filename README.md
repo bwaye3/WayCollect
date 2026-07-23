@@ -140,11 +140,24 @@ JSON export. The repo holds the *app*; your *collection* lives on your own
 machine and in vault files you keep separately. Never commit a `.vault.json`
 or a plain export here, even to a private repo.
 
+## Contact
+
+Built by **Bradley Waye**.
+
+- **Bugs, questions, suggestions** — [open an issue](https://github.com/bwaye3/WayCollect/issues).
+  Answers there are visible to the next person with the same question.
+- **Commercial licensing, partnership, or acquisition** —
+  <bradwaye@gmail.com>. See the licence below for what needs one.
+
 ## License
 
 [PolyForm Noncommercial License 1.0.0](./LICENSE) — free for personal and other
 noncommercial use, including hobby, research, educational, and charitable use.
-**Commercial use requires a separate licence.** Open an issue if you want one.
+
+**Commercial use requires a separate licence.** That includes using it inside a
+dealership, auction house or other business, bundling it with a product or
+service, or licensing the source. Email the address above and say what you have
+in mind.
 
 The source is deliberately readable: a security tool whose claims can't be
 audited isn't worth trusting. Source-available is not the same as open source,

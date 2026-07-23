@@ -2,8 +2,11 @@
 name = "watch-register"
 version = "1.14.0"
 description = "Local-first, air-gapped asset & provenance register"
-authors = ["you"]
+authors = ["Bradley Waye <bradwaye@gmail.com>"]
 edition = "2021"
+homepage = "https://github.com/bwaye3/WayCollect"
+repository = "https://github.com/bwaye3/WayCollect"
+license-file = "../LICENSE"
 
 [lib]
 name = "watch_register_lib"

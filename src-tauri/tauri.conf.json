@@ -32,6 +32,11 @@
     ],
     "macOS": {
       "signingIdentity": "-"
-    }
+    },
+    "publisher": "Bradley Waye",
+    "copyright": "Copyright © 2026 Bradley Waye. Licensed under PolyForm Noncommercial 1.0.0.",
+    "homepage": "https://github.com/bwaye3/WayCollect",
+    "shortDescription": "Local-first, encrypted register for a watch collection.",
+    "longDescription": "Watch Register keeps a private, encrypted record of a physical watch collection: provenance, service history, insurance schedules, realized and unrealized gains, and estate instructions. It runs entirely offline and makes no network requests."
   }
 }
