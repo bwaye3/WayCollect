@@ -6,7 +6,7 @@ claude.ai conversation — this file is the memory that actually carries over.
 ## What this is
 
 A local-first, air-gapped register for a physical watch collection. Built for
-one person's personal use, MIT-licensed, repo is public but **no personal
+one person's personal use, licensed PolyForm Noncommercial 1.0.0, repo is public but **no personal
 data lives in it** — see "Never do this" below.
 
 ## Architecture — read this before changing structure
@@ -27,6 +27,21 @@ data lives in it** — see "Never do this" below.
 - `package.json` exists **only** to let `npx tauri` run (the CLI ships as a
   precompiled npm binary — no Rust needed to use it for icon-gen, `info`,
   etc.). There is no frontend build script because there's nothing to build.
+
+## CSP — inline styles do not work in the packaged app
+
+Tauri injects a nonce into `style-src` when it bundles the frontend. Per the
+CSP spec, a nonce in a directive makes `'unsafe-inline'` **inert** — so every
+inline `style=""` attribute is parsed, kept in the DOM, and then applied to
+nothing. `<style>` blocks are fine (Tauri nonces them). JS `el.style.x = ...`
+is CSSOM, not an attribute, and is unaffected.
+
+This never reproduces in a browser, because nothing injects a nonce there.
+Symptoms are unsized `<img>` blowing table rows to full height and
+`display:none` elements rendering visibly, while the DOM stays functional
+(clicks still work) — which misleads toward layout theories. Put anything that
+must actually apply in the stylesheet. Utility classes live at the end of the
+`<style>` block so they win the ties inline styles used to win.
 
 ## Never do this
 
@@ -50,8 +65,18 @@ Builds happen on GitHub's hosted runners, never locally. This is a
 deliberate constraint (avoiding a Rust toolchain on a monitored work
 laptop), not a limitation to "fix" by adding local build docs.
 
+**Bump the version in THREE files before tagging** — `src-tauri/tauri.conf.json`,
+`src-tauri/Cargo.toml`, `package.json`. The git tag does not set the app
+version. This was missed for v0.1.0 through v0.1.3, so every one of those
+builds produced an identically-named `Watch Register_0.1.0_*.dmg` with no way
+to tell them apart — which made "is the fix actually in the build I'm testing?"
+unanswerable and cost two ambiguous debugging rounds.
+
 ```bash
+# 1. bump the three manifests to X.Y.Z first
+git commit -am "…"
 git tag vX.Y.Z
+git push origin main
 git push origin vX.Y.Z
 ```
 

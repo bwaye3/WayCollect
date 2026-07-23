@@ -7,6 +7,9 @@
 <title>Register — Watch Collection</title>
 <!--
   WATCH REGISTER — local-first, air-gapped register for a physical collection.
+  Copyright (c) 2026 Bradley Waye. Licensed under the PolyForm Noncommercial
+  License 1.0.0 — free for personal and other noncommercial use; commercial use
+  requires a separate licence. https://polyformproject.org/licenses/noncommercial/1.0.0
   ─────────────────────────────────────────────────────────────────────────
   Ships as a native macOS/Windows app (Tauri). No network. No servers. No
   telemetry. connect-src is 'none' in the CSP — it cannot make a request.
@@ -122,7 +125,7 @@
 
   .table-wrap{overflow-x:auto}
   table.reg{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
-  table.reg thead th{background:var(--surface-2);text-align:left;font-family:var(--mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:500;padding:10px 14px;border-bottom:1px solid var(--line-2);white-space:nowrap;cursor:pointer;user-select:none}
+  table.reg thead th{position:sticky;top:0;z-index:5;background:var(--surface-2);text-align:left;font-family:var(--mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:500;padding:10px 14px;border-bottom:1px solid var(--line-2);white-space:nowrap;cursor:pointer;user-select:none}
   table.reg thead th.no-sort{cursor:default}
   table.reg thead th .arw{color:var(--brass);margin-left:5px;font-size:9px}
   table.reg thead th.r,table.reg td.r{text-align:right}
