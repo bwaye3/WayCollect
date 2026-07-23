@@ -1,0 +1,417 @@
+WATCH REGISTER — FREQUENTLY ASKED QUESTIONS
+Draft for approval. Written 2026-07-23 against v1.12.0.
+Nothing here is in the app yet.
+
+To review: reply with question numbers — "Q7 wrong", "cut Q31", "Q22 too long".
+
+
+================================================================
+SECTION 1 — SECURITY
+================================================================
+
+Q1. Is my watch collection actually safe in this app?
+
+A1. Yes. Everything the app stores on your computer is encrypted. Not hidden,
+    not password-protected — encrypted. Without your passphrase it is unreadable
+    to anyone, including us.
+
+
+Q2. What does "encrypted" actually mean? Explain it simply.
+
+A2. Most people picture a locked filing cabinet. That is the wrong picture,
+    because a filing cabinet can be pried open and then someone reads your
+    papers.
+
+    This is different. Your collection is stored as scrambled nonsense. Someone
+    who takes your laptop, pulls the drive out and reads the raw file gets
+    random characters. There is no lock to pick, because the information itself
+    is scrambled.
+
+    Your passphrase is the only thing that unscrambles it.
+
+
+Q3. Who can see my collection?
+
+A3. You. That is the entire list.
+
+    Not us — there is no "us". No account, no server, no company holding a copy.
+
+    Not anyone on the internet. The app is built so it physically cannot make a
+    network connection. Not "we promise not to" — the ability is switched off at
+    the engine level.
+
+    Not someone using your unlocked laptop. The app locks itself, and locking
+    throws away the key until you type your passphrase again.
+
+    Not Apple, not iCloud, not any backup service — unless you copy a file there
+    yourself.
+
+
+Q4. What happens if my laptop is stolen?
+
+A4. Whoever has it gets scrambled nonsense. Your watches, values, serial
+    numbers, photos and documents are all inside the encrypted data, and it does
+    not open without your passphrase.
+
+    This is the good case. Your computer is gone; your collection record is not
+    exposed.
+
+
+Q5. What if I forget my passphrase?
+
+A5. If you also lost your recovery key, your collection is gone. Permanently.
+    Nobody can recover it — not you, not us, not anybody.
+
+    That sounds harsh, and it is the same fact that makes a stolen laptop
+    survivable. Any back door that could let you back in could let someone else
+    in too. So there isn't one. No email reset, no security questions, no
+    support line.
+
+
+Q6. What is the recovery key, and do I really need to write it down?
+
+A6. It is a one-time code shown once during setup, and it is the only other
+    thing that can open your register. It is never shown again.
+
+    Yes, write it down. On paper. Put it where your important documents live —
+    a safe, a safe-deposit box, with your attorney. Not in a note on the same
+    laptop.
+
+    With the recovery key, a forgotten passphrase is a minor annoyance. Without
+    either one, it is over.
+
+
+Q7. What does this app NOT protect me from?
+
+A7. Being straight about the limits:
+
+    - Malware running on your computer while your register is unlocked. If
+      something has taken over your machine while you are logged in, encryption
+      at rest does not help.
+    - A passphrase written on a sticky note attached to the laptop.
+    - Someone watching you type it.
+    - You deleting your own data with no backup.
+
+    Encryption stops a file being read. It cannot stop the ordinary ways people
+    lose things.
+
+
+Q8. Do I have to take your word for any of this?
+
+A8. No, and you should not have to. The source code is public and readable.
+    Anyone who can read code can verify every claim on this page. An app that
+    asks you to take security on faith is not worth taking on faith.
+
+
+================================================================
+SECTION 2 — WHAT THIS APP IS FOR
+================================================================
+
+Q9. What is this app actually for?
+
+A9. Five things. Most owners use two or three of them:
+
+    - Insurance documentation
+    - Knowing whether you are up or down, honestly
+    - Estate planning
+    - Tracking the hunt — grails and watches you are chasing
+    - Simply knowing what you own
+
+
+Q10. How does it help with insurance?
+
+A10. If a watch is stolen or lost, your insurer asks what you had, what it was
+     worth, and what proof you have. Guessing after the fact is a bad position.
+
+     The app prints a scheduled property inventory — every watch, reference,
+     serial number, market value and insured value — to hand to an insurer or
+     attach to a claim. It flags anything worth more than it is insured for.
+
+     You can also attach the actual paperwork: invoices, warranty cards,
+     appraisals, all encrypted alongside the record.
+
+
+Q11. Does it tell me whether I am making or losing money?
+
+A11. Yes, and it keeps two numbers apart on purpose:
+
+     UNREALIZED — what your collection might be worth today, based on values you
+     typed in. An estimate. Not money.
+
+     REALIZED — what actually happened when you sold. Real money, worked out
+     properly: sale price, minus selling fees, minus what you paid, duties,
+     shipping and servicing.
+
+
+Q12. What does it do for estate planning?
+
+A12. The unglamorous part. If something happens to you, whoever handles your
+     affairs needs to know what these watches are, what they are worth, which go
+     to a named person and which can be sold.
+
+     The estate register prints exactly that, grouped by your instructions.
+
+
+Q13. Can I track watches I do not own yet?
+
+A13. Yes. Mark a watch as "Seeking" and it sits in your register as part of the
+     hunt — but it is excluded from every financial total and from both printed
+     documents, because you do not own it.
+
+     When you buy it, enter the purchase price or date and the app converts it
+     to Owned automatically.
+
+
+================================================================
+SECTION 3 — GETTING STARTED
+================================================================
+
+Q14. Why is it asking me for a passphrase the moment I open it?
+
+A14. Because everything it stores is encrypted, and that passphrase is the key.
+     There is no "set this up later" — later would mean storing your collection
+     unprotected in the meantime.
+
+     Pick something you will remember. Length matters more than complexity.
+
+
+Q15. I already have my collection in a spreadsheet. Can I import it?
+
+A15. Yes. Data → Import from CSV. It reads common column headings and tolerates
+     the usual spreadsheet mess.
+
+     It ADDS to your register — it never replaces what is already there — and it
+     tells you how many rows it is about to add before doing anything.
+
+     Check the imported rows afterwards. It maps what it recognises; it cannot
+     read your mind.
+
+
+Q16. Do I have to fill in every field?
+
+A16. No. Maker and model are enough to save a watch. Everything else can be
+     added whenever you get to it.
+
+     The fields that matter most for insurance are serial number, market value
+     and scheduled (insured) value.
+
+
+================================================================
+SECTION 4 — RECORDING YOUR WATCHES
+================================================================
+
+Q17. There are three different rating fields. What is the difference?
+
+A17. They answer three different questions, and a watch can be all three at
+     once:
+
+     STARS (1-5)     — how much do I love this?
+     GRAIL           — is this one of the ones I chased?
+     LEDGER RATING   — what do I intend to do with it: Hold, Buy, Sell, Watch?
+
+     Why they are separate: a watch that has appreciated past what you would pay
+     today can be five stars, a grail, and marked Sell all at the same time. One
+     combined field could not say that.
+
+
+Q18. What is the difference between "Grail" and "Holy grail"?
+
+A18. Grail is one you are evaluating, or one you chased and landed.
+
+     Holy grail is the unattainable one — the someday watch.
+
+
+Q19. What does "Seeking" mean?
+
+A19. A watch you do not own yet, but are hunting or evaluating.
+
+     It shows in your register with a SEEKING tag, but never appears in a money
+     total, an insurance schedule or an estate register. It is a placeholder for
+     the hunt, not an asset.
+
+
+Q20. What is the difference between "Sell" and "Sold"?
+
+A20. Ledger rating "Sell" is an intention. You still own it.
+
+     Status "Sold" is a fact. It is gone, it leaves your held totals, and it
+     moves into your realized profit and loss.
+
+
+Q21. Why did the app change a watch's status by itself?
+
+A21. On purpose, and it tells you when it happens.
+
+     Enter a sale date or price and it marks the watch Sold. Enter loss details
+     and it marks it Lost. Enter purchase details on a Seeking watch and it
+     marks it Owned.
+
+     Without this, a watch you had clearly sold would still be counted in your
+     market value, cost basis and insurance coverage — making every total wrong
+     with nothing on screen to warn you.
+
+
+================================================================
+SECTION 5 — THE MONEY
+================================================================
+
+Q22. Why is my "Realized" number lower than I expected?
+
+A22. Because it is the real one. It subtracts selling fees, duties and shipping
+     you paid on the way in, and any servicing you logged while you owned it.
+
+     Worked example: a watch bought for $4,000, serviced twice for $1,950, sold
+     for $6,500 with $780 in fees looks like a $1,570 win. It is actually a $380
+     loss. The disposition report shows both figures side by side.
+
+
+Q23. Why does it say one of my watches is underinsured?
+
+A23. Its market value is higher than what your policy would pay out. The gap is
+     what you would have to absorb yourself.
+
+
+Q24. My policy pays more than the scheduled value. Can the app handle that?
+
+A24. Yes, but you have to tell it. Set the Insurer and "Pays up to" fields under
+     Valuation & coverage.
+
+     Some policies pay above the scheduled value — Hodinkee pays up to 150%.
+     Without that setting, the app assumes you are covered only for the
+     scheduled figure and will warn you about gaps that do not exist.
+
+     It cuts the other way too. A standard homeowner's policy usually caps a
+     single watch far below its value unless individually scheduled. Record that
+     honestly and the app will tell you the truth.
+
+
+Q25. One of my watches was stolen. How do I record it?
+
+A25. Set its status to Lost and fill in the Loss & claim section: the type of
+     loss, the date, police report number, claim number, and what the insurer
+     actually paid you.
+
+     The settlement is treated as proceeds, exactly like a sale price, so the
+     claim appears properly in your realized profit and loss. The disposition
+     report labels it as an insurance claim rather than a sale.
+
+
+================================================================
+SECTION 6 — PHOTOS AND DOCUMENTS
+================================================================
+
+Q26. What is the difference between a photo and a document?
+
+A26. PHOTOS are wrist shots and reference images. They are automatically shrunk
+     so a page of twenty watches does not choke. Click any photo to see it full
+     size, with a "Save full size" button.
+
+     DOCUMENTS are evidence — invoices, warranty cards, appraisals. Images or
+     PDFs, stored exactly as you gave them, never compressed, because the fine
+     print matters. They appear as a list on the watch's detail panel; click one
+     to save the original file.
+
+     Use Documents for anything you might have to show an insurer.
+
+
+Q27. How do I get a PDF of my insurance schedule?
+
+A27. Two steps:
+
+     1. Data → Insurance schedule. This saves a file to your Downloads folder.
+        That is the document itself, not a PDF yet.
+     2. Open that file — it opens in your browser — press Cmd-P, and choose
+        "Save as PDF" from the PDF menu at the bottom-left.
+
+     The app explains this on screen when you save the document.
+
+
+Q28. Why doesn't the app just create the PDF directly?
+
+A28. Doing that would mean granting the app permission to write files anywhere
+     on your computer and to launch other programs on your behalf. That is a
+     real increase in what the app can reach, in exchange for saving you one
+     click. It was not worth it.
+
+
+================================================================
+SECTION 7 — WHAT THIS APP DELIBERATELY DOES NOT DO
+================================================================
+
+Q29. Does it sync to my phone or to the cloud?
+
+A29. No. Your collection lives on this machine. Moving it to another computer
+     means exporting an encrypted vault file and taking it there yourself.
+
+     That is the trade: no sync, but also nothing of yours sitting on somebody
+     else's server.
+
+
+Q30. Does it update market values automatically?
+
+A30. No. Market values are what you type in. A price feed would require a
+     network connection, and this app does not make network connections.
+
+
+Q31. Is there really no password reset?
+
+A31. Really. See "What if I forget my passphrase?" above. It is a deliberate
+     feature, not a missing one.
+
+
+Q32. Is any of this tax advice?
+
+A32. No. The app produces an accurate record of what you paid and what you got
+     back. What that means for your taxes is a conversation with your
+     accountant — collectibles are often treated differently from other assets.
+
+
+================================================================
+SECTION 8 — WHEN SOMETHING LOOKS WRONG
+================================================================
+
+Q33. I opened the app and my collection is gone. It wants me to set a new
+     passphrase.
+
+A33. Stop. Do not create a new passphrase — that starts a fresh empty register.
+
+     Almost always this means the app is looking somewhere other than where your
+     data is. Make sure the app is in your Applications folder, not being run
+     from Downloads or from a mounted disk image. Move it there and reopen it.
+
+     Your data has not been deleted. The app is not finding it.
+
+
+Q34. I forgot my passphrase. What now?
+
+A34. On the lock screen, choose "Use recovery key instead" and enter the
+     recovery key from setup. Capitals, spaces and dashes do not matter.
+
+     Once you are in, change your passphrase to something memorable
+     (Data → Change passphrase). Your recovery key keeps working.
+
+     If you have neither, see "What if I forget my passphrase?" above. There
+     is genuinely nothing that can be done.
+
+
+Q35. How do I back everything up?
+
+A35. Data → Save encrypted vault. That produces a single encrypted file holding
+     everything: watches, photos, documents, owner details.
+
+     Keep it somewhere other than this laptop. It is encrypted, so a USB stick
+     or a cloud drive is fine — without the passphrase it is unreadable to
+     whoever holds it.
+
+     Two things worth doing:
+     - Store the vault file and your recovery key in different places. Together
+       in one folder means a single loss takes both.
+     - Back up again after any significant change. The last backup is the only
+       one that counts.
+
+
+Q36. It said "Optimised N stored photos" when it opened. Is something wrong?
+
+A36. No, and it only happens once. An earlier version stored full-size camera
+     images, which made the app slow. It is shrinking them for display. Files
+     you attached under Documents are untouched.
