@@ -1,6 +1,6 @@
 {
   "name": "watch-register",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "private": true,
   "description": "Local-first, air-gapped asset & provenance register",
   "license": "LicenseRef-PolyForm-Noncommercial-1.0.0",

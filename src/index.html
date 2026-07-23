@@ -1219,9 +1219,16 @@ function deliverDoc(title,slug,inner,wide){
     '</style></head>\n<body><div class="print-doc">'+inner+'</div></body></html>';
   const fname=slug+"-"+today()+".html";
   download(fname,html,"text/html");
+  /* Windows builds ship from the same file, so the shortcut and the PDF
+     option both have to match the platform the user is actually on. */
+  const mac=/Mac|iPhone|iPad/.test(navigator.platform||navigator.userAgent||"");
   noticeDlg(title+" saved",
-    "Saved to your Downloads folder as “"+fname+"”.\n\n"+
-    "This is the document itself, not a PDF. Open it — it will open in your browser — then press ⌘P and choose “Save as PDF” from the PDF menu at the bottom-left of the print dialog.");
+    "Saved to your Downloads folder as\n“"+fname+"”\n\n"+
+    "That file is the document itself — not a PDF yet. To get a PDF:\n\n"+
+    "1.  Open the file. It opens in your browser.\n"+
+    "2.  Press "+(mac?"⌘P":"Ctrl+P")+".\n"+
+    "3.  Choose "+(mac?"“Save as PDF” from the PDF menu at the bottom-left of the print dialog.":"“Microsoft Print to PDF” as the printer.")+"\n\n"+
+    "The file stays on this machine. Nothing was uploaded, and nothing left the app.");
 }
 function ownerHead(kind){const o=OWNER;const now=new Date();
   const line=[o.name,o.address].filter(Boolean).join(" · ");
