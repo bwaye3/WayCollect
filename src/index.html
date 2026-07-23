@@ -234,6 +234,7 @@
   .add-photo svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.6}
 
   .dialog-text{color:var(--prose);font-size:14px;line-height:1.7}
+  #confMsg{white-space:pre-line}
   .dialog-text b{color:var(--text)}
   .pw-input{width:100%;background:var(--surface-2);border:1px solid var(--line);color:var(--text);border-radius:var(--r);padding:10px 12px;font-family:var(--mono);font-size:13px;letter-spacing:.05em;margin-top:14px}
   .pw-input:focus{border-color:var(--brass-dim);outline:none}
@@ -1216,8 +1217,11 @@ function deliverDoc(title,slug,inner,wide){
     '@media screen{body{max-width:'+(wide?'1500px':'1100px')+';margin:0 auto}}\n'+
     (wide?'.pd-table{font-size:9px}.pd-table th,.pd-table td{padding:5px 5px}\n':'')+
     '</style></head>\n<body><div class="print-doc">'+inner+'</div></body></html>';
-  download(slug+"-"+today()+".html",html,"text/html");
-  toast("Saved. Open the file and press ⌘P to print or save as PDF.");
+  const fname=slug+"-"+today()+".html";
+  download(fname,html,"text/html");
+  noticeDlg(title+" saved",
+    "Saved to your Downloads folder as “"+fname+"”.\n\n"+
+    "This is the document itself, not a PDF. Open it — it will open in your browser — then press ⌘P and choose “Save as PDF” from the PDF menu at the bottom-left of the print dialog.");
 }
 function ownerHead(kind){const o=OWNER;const now=new Date();
   const line=[o.name,o.address].filter(Boolean).join(" · ");
@@ -1283,7 +1287,13 @@ let pwState=null;
 function askPass({confirm,title,msg,onOk}){pwState={confirm,onOk};$("#pwTitle").textContent=title;$("#pwMsg").textContent=msg;$("#pwInput").value="";$("#pwInput2").value="";$("#pwInput2").style.display=confirm?"block":"none";$("#pwNote").style.display=confirm?"block":"none";$("#pwNote").textContent="There is no recovery. Lose this passphrase and the vault cannot be opened — by anyone. Store a sealed copy per Succession & recovery.";$("#pwScrim").classList.add("on");setTimeout(()=>$("#pwInput").focus(),40);}
 function pwSubmit(){const p=$("#pwInput").value;if(!p){toast("Enter a passphrase.",true);return;}if(pwState.confirm){if(p!==$("#pwInput2").value){toast("Passphrases don't match.",true);return;}if(p.length<8){toast("Use at least 8 characters.",true);return;}}const cb=pwState.onOk;$("#pwScrim").classList.remove("on");pwState=null;cb(p);}
 let confCb=null;
-function confirmDlg(title,msg,cb){$("#confTitle").textContent=title;$("#confMsg").textContent=msg;confCb=cb;$("#confScrim").classList.add("on");}
+function confirmDlg(title,msg,cb){$("#confTitle").textContent=title;$("#confMsg").textContent=msg;confCb=cb;
+  $("#confCancel").style.display="";$("#confOk").textContent="Confirm";$("#confScrim").classList.add("on");}
+/* An instruction the user has to act on must not be a toast. Toasts are
+   bottom-centre, 12.5px, and gone in 2.6s -- fine for "Saved.", wrong for
+   "here is where your file went and what to do with it". */
+function noticeDlg(title,msg){$("#confTitle").textContent=title;$("#confMsg").textContent=msg;confCb=null;
+  $("#confCancel").style.display="none";$("#confOk").textContent="Got it";$("#confScrim").classList.add("on");}
 
 /* ── Mode ── */
 function setMode(m,fromInit){if(m===MODE&&!fromInit)return;
