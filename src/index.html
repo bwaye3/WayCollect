@@ -8,26 +8,33 @@
 <!--
   WATCH REGISTER — local-first, air-gapped register for a physical collection.
   ─────────────────────────────────────────────────────────────────────────
-  • No network. No servers. No telemetry. Nothing is ever transmitted.
-  • Two ways to hold data:
-      LOCAL   — persists in this browser's IndexedDB (convenient; plaintext in the browser store)
-      VAULT-ONLY — nothing written to the browser; data lives in memory; you open/save an
-                   encrypted .vault file. Closing the tab leaves no trace. This is the USB mode.
-  • Encryption = the browser's built-in WebCrypto. AES-256-GCM vault, key wrapped by a
-    passphrase (PBKDF2, 250k rounds). No third-party crypto libraries. No backdoor, no reset.
-  • The design is ENVELOPE encryption: a random master key encrypts the vault; the passphrase
-    only wraps that master key. That master key is the single secret you could later split with
-    Shamir's Secret Sharing (K-of-N) for inheritance — without ever re-encrypting the data.
+  Ships as a native macOS/Windows app (Tauri). No network. No servers. No
+  telemetry. connect-src is 'none' in the CSP — it cannot make a request.
 
-  RUNNING IT
-  • Double-click to open over file://  (Chrome/Firefox treat local files as a secure context,
-    so WebCrypto + IndexedDB both work), OR serve from localhost for maximum compatibility:
-        python3 -m http.server 8080   →   http://localhost:8080/
-    Either way it stays fully offline.
+  • ENCRYPTED AT REST. Everything stored on the machine is sealed with
+    AES-256-GCM. There is no plaintext copy on disk. The app opens locked;
+    the passphrase decrypts the register into memory for the session, and
+    locking (manually, on launch, or via the idle timer) drops the key.
+  • TWO WRAPS, ONE MASTER KEY. A random master key encrypts the data. The
+    passphrase and the recovery key each independently *wrap* that master
+    key (PBKDF2-SHA256, 250k rounds). Either opens the register; neither is
+    derivable from the other. Changing the passphrase re-wraps only the key,
+    so no data is re-encrypted. Shamir K-of-N shares drop in as a third wrap.
+  • VAULT-ONLY MODE writes nothing to the machine — memory only, you open and
+    save encrypted .vault files by hand. That is the borrowed-computer mode.
+  • NO RESET. Lose the passphrase and the recovery key and the collection is
+    gone, permanently, for everyone. That is the design, not a gap in it.
 
-  SUCCESSION — read the "Succession & recovery" panel. There is deliberately no password reset.
-  Heir access is a custody act (sealed passphrase with your executor / safe-deposit box, named
-  in your will), not an email link. See the panel for the correct, non-backdoor approach.
+  CSP NOTE — inline style="" attributes DO NOT WORK in the packaged app.
+  Tauri injects a nonce into style-src, which per spec makes 'unsafe-inline'
+  inert, so style attributes are parsed and then ignored. Anything that must
+  actually apply belongs in the stylesheet. JS el.style.x = ... is CSSOM and
+  is unaffected. This never reproduces in a browser.
+
+  SUCCESSION — read the "Succession & recovery" panel. There is deliberately
+  no password reset. Heir access is a custody act (the recovery key on paper
+  with your executor / in a safe-deposit box, named in your will), not an
+  email link.
 -->
 <style>
   :root{
@@ -307,11 +314,88 @@
   .thumb-empty{width:34px;height:34px;border-radius:2px;border:1px dashed var(--line-2);display:flex;align-items:center;justify-content:center;color:var(--muted-2);font-size:9px;font-family:var(--mono)}
   .pd-fine{margin-top:4px;font-size:10.5px;color:#555}
   .pd-succ{font-size:10.5px;line-height:1.6}
+
+  /* ── Lock / setup overlay ── */
+  .lock-screen{position:fixed;inset:0;z-index:200;background:var(--ink);display:none;align-items:center;justify-content:center;padding:24px}
+  .lock-screen.on{display:flex}
+  .lock-card{width:100%;max-width:430px;text-align:center}
+  .lock-mark{font-family:var(--mono);font-weight:600;letter-spacing:.28em;font-size:15px;text-transform:uppercase;color:var(--text)}
+  .lock-mark b{color:var(--brass);font-weight:600}
+  .lock-sub{font-size:10px;letter-spacing:.04em;color:var(--muted-2);margin-top:4px;font-family:var(--mono)}
+  .lock-msg{font-size:12.5px;color:var(--muted);line-height:1.6;margin:22px 0 14px}
+  .lock-card .pw-input{width:100%;text-align:center;margin-bottom:8px}
+  .lock-actions{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+  .lock-alt{font-size:11px}
+  .lock-err{color:var(--alert);font-size:11.5px;min-height:17px;margin-top:9px}
+  .lock-step{display:none}
+  .lock-step.on{display:block}
+  .rc-code{font-family:var(--mono);font-size:16px;letter-spacing:.14em;color:var(--brass);background:var(--surface-2);border:1px solid var(--line-2);border-radius:3px;padding:15px 10px;margin:15px 0}
+  .rc-warn{font-size:11.5px;color:var(--muted);line-height:1.65;text-align:left}
+  .rc-warn b{color:var(--alert)}
+  .rc-check{display:flex;gap:9px;align-items:flex-start;margin:15px 0 4px;font-size:12px;color:var(--text);text-align:left;cursor:pointer;line-height:1.5}
+  .rc-check input{margin-top:2px;flex:none}
 </style>
 </head>
 <body>
 <div class="app" id="app">
-  <header class="top">
+  <!-- lock / first-run setup -->
+<div class="lock-screen" id="lockScreen">
+  <div class="lock-card">
+    <div class="lock-mark">RE<b>GISTER</b></div>
+    <div class="lock-sub">Watch Collection</div>
+
+    <div class="lock-step on" id="stepUnlock">
+      <p class="lock-msg" id="unlockMsg">Enter your passphrase to unlock this register.</p>
+      <input type="password" class="pw-input" id="lockPass" placeholder="Passphrase" autocomplete="off">
+      <div class="lock-err" id="unlockErr"></div>
+      <div class="lock-actions">
+        <button class="btn primary" id="unlockGo">Unlock</button>
+        <button class="btn ghost lock-alt" id="useRecovery">Use recovery key instead</button>
+      </div>
+    </div>
+
+    <div class="lock-step" id="stepRecovery">
+      <p class="lock-msg">Enter your recovery key. Dashes and spacing don&rsquo;t matter.</p>
+      <input type="text" class="pw-input" id="lockRc" placeholder="XXXXX-XXXXX-XXXXX-XXXXX" autocomplete="off">
+      <div class="lock-err" id="rcErr"></div>
+      <div class="lock-actions">
+        <button class="btn primary" id="rcGo">Unlock</button>
+        <button class="btn ghost lock-alt" id="usePassphrase">Back to passphrase</button>
+      </div>
+    </div>
+
+    <div class="lock-step" id="stepCreate">
+      <p class="lock-msg" id="createMsg">Choose a passphrase. It encrypts everything this app stores on this machine &mdash; nothing is readable without it.</p>
+      <input type="password" class="pw-input" id="newPass" placeholder="Passphrase" autocomplete="off">
+      <input type="password" class="pw-input" id="newPass2" placeholder="Confirm passphrase" autocomplete="off">
+      <div class="lock-err" id="createErr"></div>
+      <div class="lock-actions"><button class="btn primary" id="createGo">Continue</button></div>
+    </div>
+
+    <div class="lock-step" id="stepShowRc">
+      <p class="lock-msg">Your recovery key. This is the only other thing that can open your register.</p>
+      <div class="rc-code" id="rcOut"></div>
+      <p class="rc-warn"><b>Write this down now.</b> Print it or copy it onto paper and put it where your estate documents live. It is shown once and never again. If you lose both the passphrase and this key, your collection cannot be recovered &mdash; not by you, not by anyone.</p>
+      <label class="rc-check"><input type="checkbox" id="rcAck"><span>I have stored this recovery key somewhere safe and offline.</span></label>
+      <div class="lock-err" id="rcAckErr"></div>
+      <div class="lock-actions">
+        <button class="btn" id="rcCopy">Copy to clipboard</button>
+        <button class="btn primary" id="rcDone">Finish setup</button>
+      </div>
+    </div>
+
+    <div class="lock-step" id="stepMigrate">
+      <p class="lock-msg">This version encrypts your collection on disk. Your existing <b id="migCount">0</b> records are currently stored unencrypted.</p>
+      <p class="rc-warn">Export a plain backup first. Once encryption is set up, the unencrypted copy on this machine is erased, and only your passphrase or recovery key can open the register. Keep the backup somewhere safe until you have confirmed the new passphrase works.</p>
+      <div class="lock-actions">
+        <button class="btn" id="migBackup">Export backup first</button>
+        <button class="btn primary" id="migGo">Set a passphrase</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<header class="top">
     <div class="top-row">
       <div class="brand"><img class="brand-logo" src="data:image/png;base64,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" alt=""><div class="brand-text"><div class="mark" id="wordmark">RE<b>GISTER</b></div><div class="sub">Watch Collection</div></div></div>
       <div class="readout" id="readout"></div>
@@ -319,6 +403,7 @@
         <button class="btn primary" id="btnAdd" title="Add a watch"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span class="hl">Add</span></button>
         <button class="btn" id="btnOwner" title="Owner & succession"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg><span class="hl">Owner</span></button>
         <button class="btn" id="btnMenu" title="Vault, backup & print"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span class="hl">Data</span></button>
+        <button class="btn" id="btnLock" title="Lock now"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span class="hl">Lock</span></button>
       </div>
     </div>
   </header>
@@ -427,8 +512,12 @@
     <div class="eyebrow u-mt10 u-mbn2">Documents — print or Save as PDF</div>
     <button class="btn" id="mPrintIns"><svg viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 18H4v-6h16v6h-2M8 14h8v6H8z"/></svg> Insurance schedule</button>
     <button class="btn" id="mPrintEst"><svg viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 18H4v-6h16v6h-2M8 14h8v6H8z"/></svg> Estate register</button>
+    <div class="eyebrow u-mt10 u-mbn2">Security</div>
+    <label class="dialog-text u-f11" for="idleSel">Lock automatically after</label>
+    <select id="idleSel"><option value="5">5 minutes idle</option><option value="15">15 minutes idle</option><option value="30">30 minutes idle</option><option value="60">60 minutes idle</option><option value="0">Never (not recommended)</option></select>
+    <button class="btn" id="mChangePass"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg> Change passphrase</button>
     <div class="eyebrow u-mt10 u-mbn2">Danger zone</div>
-    <button class="btn danger ghost" id="mWipe"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg> Erase local database</button>
+    <button class="btn danger ghost" id="mWipe"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg> Erase encrypted register</button>
     <input type="file" id="fileInput" accept=".json,application/json" class="u-hide">
     <input type="file" id="csvFileInput" accept=".csv,text/csv" class="u-hide">
   </div>
@@ -456,12 +545,23 @@
 <div class="modal-scrim" id="helpScrim"><div class="modal">
   <div class="modal-head"><h3>How it works</h3><button class="x" id="helpClose"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
   <div class="modal-body dialog-text u-lh17">
-    <p><b>Nothing leaves this machine.</b> No servers, no accounts, no telemetry, no network calls of any kind.</p>
-    <p><b>Two storage modes.</b> <b>Local database</b> keeps your collection in this browser's store (convenient, but plaintext on this host). <b>Vault-only</b> writes nothing to the browser — data lives in memory, you open and save encrypted <span class="num">.vault</span> files, and closing the tab leaves no trace. Vault-only is the mode for running from a USB stick on a machine you don't want to leave data on.</p>
-    <p><b>Encryption.</b> Encrypted vaults use AES-256-GCM. A random master key encrypts the data; your passphrase only wraps that master key (PBKDF2, 250,000 rounds). No third-party crypto. There is no backdoor and <b>no password reset</b> — lose the passphrase and the vault is unrecoverable by anyone.</p>
-    <p><b>Shard-ready by design.</b> Because the passphrase wraps a master key rather than encrypting the data directly, that master key is a single secret that can later be split with Shamir's Secret Sharing (e.g. any 3 of 5 shares reconstruct it) for inheritance — without re-encrypting anything. That layer isn't built yet; the format is prepared for it.</p>
-    <p><b>If encryption is unavailable</b> over <span class="num">file://</span>, serve from localhost: <span class="num u-brass">python3 -m http.server 8080</span> → <span class="num">http://localhost:8080/</span>. Still fully offline.</p>
-    <p><b>Documents.</b> The insurance schedule and estate register open the print dialog — choose <b>Save as PDF</b>. The insurance schedule flags every watch whose market value exceeds its scheduled (insured) value.</p>
+    <p><b>A native desktop app.</b> Watch Register runs as a real macOS and Windows application &mdash; not a website, not a browser tab. Nothing leaves this machine: no servers, no accounts, no telemetry, and no network calls of any kind. The app is built with its network access switched off at the engine level, so it cannot phone home even if something tried to.</p>
+
+    <p><b>Your collection is encrypted on disk.</b> Everything the app stores on this machine is sealed with AES-256-GCM. There is no readable copy anywhere on your drive &mdash; not a database file, not a cache. When you open the app you are asked for your passphrase, and that passphrase is what decrypts the register into memory for the session. Close the app, lock it, or walk away long enough for the idle timer, and the decrypted copy is discarded.</p>
+
+    <p><b>Locking.</b> The app locks on launch, and again after a period of inactivity you choose under <b>Data &rarr; Security</b> (15 minutes by default). You can also lock instantly with the <b>Lock</b> button in the header. Locking drops the decryption key, so a locked app is not a screen covering readable data &mdash; there is genuinely nothing to read until the passphrase is entered again.</p>
+
+    <p><b>What this does and doesn&rsquo;t protect against.</b> It protects against someone sitting down at your unlocked laptop, and against your drive or backups being read by someone who has the files but not your passphrase. It does not protect against malware running as you while the register is unlocked, and it cannot protect a passphrase you have written on a sticky note.</p>
+
+    <p><b>Passphrase and recovery key.</b> A random master key encrypts your data. Your passphrase never encrypts the data directly &mdash; it only <i>wraps</i> that master key (PBKDF2-SHA256, 250,000 rounds). The same master key is wrapped a second time by the recovery key shown once during setup. Either one opens the register; neither can be derived from the other. Changing your passphrase re-wraps the key and takes an instant, because none of your data is re-encrypted.</p>
+
+    <p><b>There is no reset.</b> No backdoor, no email recovery, no support channel that can let you back in. If you lose the passphrase <i>and</i> the recovery key, your collection is unrecoverable by anyone, permanently. Store the recovery key on paper, offline, where your estate documents live &mdash; see <b>Succession &amp; recovery</b>.</p>
+
+    <p><b>Vault files.</b> Alongside the encrypted local store you can export a portable <span class="num">.vault.json</span> &mdash; the same envelope encryption in a single file you control. Use it for offsite backup, for moving between machines, or as the copy your executor receives. <b>Vault-only mode</b> writes nothing to this machine at all: the register lives in memory, you open and save vault files by hand, and quitting leaves no trace. That is the mode for a borrowed or shared computer.</p>
+
+    <p><b>Shard-ready by design.</b> Because a passphrase wraps a master key rather than encrypting data directly, the same master key can carry additional wraps. The recovery key is the first of these. A future release can split that master key with Shamir&rsquo;s Secret Sharing &mdash; any 3 of 5 shares, say, held by different family members &mdash; without re-encrypting anything you already have.</p>
+
+    <p><b>Documents.</b> The insurance schedule and estate register open the print dialog &mdash; choose <b>Save as PDF</b>. The insurance schedule flags every watch whose market value exceeds its scheduled (insured) value.</p>
   </div>
   <div class="modal-foot"><span></span><button class="btn primary" id="helpOk">Got it</button></div>
 </div></div>
@@ -614,6 +714,11 @@ function idbDel(id){return new Promise((res,rej)=>{const r=tx(STORE,"readwrite")
 function idbClear(){return new Promise((res,rej)=>{const r=tx(STORE,"readwrite").clear();r.onsuccess=()=>res();r.onerror=()=>rej(r.error);});}
 function metaGet(k){return new Promise((res)=>{try{const r=tx(META,"readonly").get(k);r.onsuccess=()=>res(r.result?r.result.v:null);r.onerror=()=>res(null);}catch(e){res(null);}});}
 function metaPut(k,v){return new Promise((res)=>{try{const r=tx(META,"readwrite").put({k,v});r.onsuccess=()=>res();r.onerror=()=>res();}catch(e){res();}});}
+/* The sealed register is the only copy of the data — a failed write here is
+   data loss, so unlike metaPut this one refuses to fail quietly. */
+function metaDel(k){return new Promise(res=>{try{const r=tx(META,"readwrite").delete(k);r.onsuccess=()=>res();r.onerror=()=>res();}catch(e){res();}});}
+function metaPutStrict(k,v){return new Promise((res,rej)=>{try{const r=tx(META,"readwrite").put({k,v});
+  r.onsuccess=()=>res();r.onerror=()=>rej(r.error||new Error("write rejected"));}catch(e){rej(e);}});}
 
 /* ── State ── */
 let ASSETS=[];
@@ -661,6 +766,79 @@ async function kekFrom(pass,salt){const base=await crypto.subtle.importKey("raw"
 async function seal(obj,pass){const MK=await crypto.subtle.generateKey({name:"AES-GCM",length:256},true,["encrypt","decrypt"]);const salt=crypto.getRandomValues(new Uint8Array(16));const kek=await kekFrom(pass,salt);const wIv=crypto.getRandomValues(new Uint8Array(12));const wrapped=await crypto.subtle.wrapKey("raw",MK,kek,{name:"AES-GCM",iv:wIv});const dIv=crypto.getRandomValues(new Uint8Array(12));const ct=await crypto.subtle.encrypt({name:"AES-GCM",iv:dIv},MK,new TextEncoder().encode(JSON.stringify(obj)));return{format:"ledger.vault",v:2,kdf:"PBKDF2-SHA256",iter:ITER,salt:b64(salt),wrap:{iv:b64(wIv),key:b64(wrapped)},data:{iv:b64(dIv),ct:b64(ct)}};}
 async function unseal(pkg,pass){const kek=await kekFrom(pass,ub(pkg.salt));const MK=await crypto.subtle.unwrapKey("raw",ub(pkg.wrap.key),kek,{name:"AES-GCM",iv:ub(pkg.wrap.iv)},{name:"AES-GCM",length:256},false,["decrypt"]);const pt=await crypto.subtle.decrypt({name:"AES-GCM",iv:ub(pkg.data.iv)},MK,ub(pkg.data.ct));return JSON.parse(new TextDecoder().decode(pt));}
 const cryptoAvailable=()=>!!(window.crypto&&window.crypto.subtle);
+
+/* ── At-rest store crypto ──
+   Same envelope shape as the vault file, except the master key is wrapped
+   TWICE — once by the passphrase, once by a printable recovery code. Either
+   unwraps the same MK, so adding recovery costs no re-encryption, and a
+   Shamir share can become a third wrap later without touching stored data.
+   The MK lives in memory only; locking drops it. */
+const STORE_KEY="store";
+let MK=null;          /* unwrapped master key — memory only, never persisted */
+let STORE_PKG=null;   /* the sealed package; .data is replaced on each save */
+
+async function wrapMK(mk,secret){
+  const salt=crypto.getRandomValues(new Uint8Array(16));
+  const kek=await kekFrom(secret,salt);
+  const iv=crypto.getRandomValues(new Uint8Array(12));
+  const key=await crypto.subtle.wrapKey("raw",mk,kek,{name:"AES-GCM",iv});
+  return{salt:b64(salt),iv:b64(iv),key:b64(key)};
+}
+async function unwrapMK(w,secret){
+  const kek=await kekFrom(secret,ub(w.salt));
+  return crypto.subtle.unwrapKey("raw",ub(w.key),kek,{name:"AES-GCM",iv:ub(w.iv)},
+    {name:"AES-GCM",length:256},true,["encrypt","decrypt"]);
+}
+async function encWith(mk,obj){
+  const iv=crypto.getRandomValues(new Uint8Array(12));
+  const ct=await crypto.subtle.encrypt({name:"AES-GCM",iv},mk,new TextEncoder().encode(JSON.stringify(obj)));
+  return{iv:b64(iv),ct:b64(ct)};
+}
+async function decWith(mk,d){
+  const pt=await crypto.subtle.decrypt({name:"AES-GCM",iv:ub(d.iv)},mk,ub(d.ct));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+
+/* Crockford base32 — no I, L, O or U, so the code can be read off paper
+   without ambiguity. 20 chars x 5 bits = 100 bits of entropy. */
+const RC_ALPHA="0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+function newRecoveryCode(){
+  const b=crypto.getRandomValues(new Uint8Array(20));
+  let s="";for(let i=0;i<20;i++)s+=RC_ALPHA[b[i]&31];
+  return s.match(/.{1,5}/g).join("-");
+}
+/* Fold the shapes people mis-transcribe back onto the real alphabet. */
+const normRecovery=s=>(s||"").toUpperCase().replace(/[^0-9A-Z]/g,"")
+  .replace(/I/g,"1").replace(/L/g,"1").replace(/O/g,"0").replace(/U/g,"V");
+
+async function createStore(pass,code){
+  const mk=await crypto.subtle.generateKey({name:"AES-GCM",length:256},true,["encrypt","decrypt"]);
+  STORE_PKG={format:"ledger.store",v:1,kdf:"PBKDF2-SHA256",iter:ITER,
+    wraps:{pass:await wrapMK(mk,pass),recovery:await wrapMK(mk,normRecovery(code))},data:null};
+  MK=mk;
+  await saveStore();   /* throws if the write fails, so setup cannot report success on a failed save */
+}
+/* Only the AES layer re-runs on save — PBKDF2 (250k rounds) stays in the
+   wraps and is never recomputed, so saving is milliseconds, not seconds. */
+async function saveStore(){
+  if(!MK||!STORE_PKG)return;
+  STORE_PKG.data=await encWith(MK,{assets:ASSETS,owner:OWNER});
+  try{await metaPutStrict(STORE_KEY,STORE_PKG);}
+  catch(e){toast("Could not save to disk — your changes are only in memory. Export a vault now.",true);throw e;}
+}
+async function unlockStore(pkg,secret,which){
+  const mk=await unwrapMK(pkg.wraps[which],secret);
+  const body=await decWith(mk,pkg.data);
+  MK=mk;STORE_PKG=pkg;
+  ASSETS=(body.assets||[]).map(a=>({...a,id:a.id||uuid()}));
+  OWNER={...OWNER_DEFAULT,...(body.owner||{})};
+}
+/* Re-wrap the existing MK under a new passphrase. Data is untouched. */
+async function changePassphrase(newPass){
+  if(!MK||!STORE_PKG)throw new Error("Locked.");
+  STORE_PKG.wraps.pass=await wrapMK(MK,newPass);
+  await metaPut(STORE_KEY,STORE_PKG);
+}
 
 /* ── Filter / sort ── */
 function currentRows(){let r=ASSETS.slice();const q=ui.q.trim().toLowerCase();
@@ -830,7 +1008,7 @@ const readImage=file=>new Promise((res,rej)=>{const r=new FileReader();
    them once, sequentially, so one oversized image can't be held in memory
    alongside the next. Runs before the first render. */
 async function migratePhotos(){
-  let n=0;
+  let n=0,changed=false;
   for(const a of ASSETS){
     if(!a.photos||!a.photos.length)continue;
     let touched=false;
@@ -839,8 +1017,9 @@ async function migratePhotos(){
       try{const s=await shrinkPhoto(p.dataUrl);p.dataUrl=s.dataUrl;p.thumbUrl=s.thumbUrl;touched=true;n++;}
       catch(e){}
     }
-    if(touched){if(MODE==="local"&&_db){try{await idbPut(a);}catch(e){}}else{dirty=true;}}
+    if(touched){changed=true;}
   }
+  if(changed){if(MODE==="local")await saveStore();else dirty=true;}
   return n;
 }
 
@@ -849,9 +1028,9 @@ function openOwner(){buildGrid($("#ownerGrid"),OWNER_FIELDS);OWNER_FIELDS.forEac
 async function saveOwner(){OWNER_FIELDS.forEach(f=>{if(f.k)OWNER[f.k]=getF(f.k);});await persistOwner();$("#ownerScrim").classList.remove("on");toast("Owner details saved.");}
 
 /* ── Persistence (mode-aware) ── */
-async function persistAsset(rec){if(MODE==="local"){await idbPut(rec);}else{markDirty();}}
-async function persistOwner(){if(MODE==="local"){await metaPut("owner",OWNER);}else{markDirty();}}
-async function removeAsset(id){ASSETS=ASSETS.filter(x=>x.id!==id);if(MODE==="local")await idbDel(id);else markDirty();}
+async function persistAsset(rec){if(MODE==="local"){await saveStore();}else{markDirty();}}
+async function persistOwner(){if(MODE==="local"){await saveStore();}else{markDirty();}}
+async function removeAsset(id){ASSETS=ASSETS.filter(x=>x.id!==id);if(MODE==="local")await saveStore();else markDirty();}
 
 /* ── Import / export ── */
 function download(name,content){const blob=new Blob([content],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(url);a.remove();},100);}
@@ -950,7 +1129,7 @@ async function handleImportCsvFile(file){
     `This adds to your current ${ASSETS.length}-watch register — it does not replace anything. Review each new entry afterward; the CSV importer maps common columns but can't catch everything.`,
     async()=>{
       ASSETS=ASSETS.concat(records);
-      if(MODE==="local"){for(const a of records)await idbPut(a);}else{markDirty();}
+      if(MODE==="local"){await saveStore();}else{markDirty();}
       renderReadout();renderTable();updateDbNote();
       toast(`Added ${records.length} watch${records.length!==1?"es":""} from CSV.`);
     });
@@ -965,7 +1144,7 @@ async function handleImportFile(file){const text=await file.text();let obj;try{o
 async function ingest(b){const inc=(b.assets||[]).filter(x=>x&&typeof x==="object");if(!inc.length&&!b.owner){toast("No data found in that file.",true);return;}
   confirmDlg(`Load ${inc.length} watch${inc.length!==1?"es":""}${b.owner?" + owner details":""}?`,"This replaces the current in-memory register (your files are untouched).",async()=>{
     ASSETS=inc.map(a=>({...a,id:a.id||uuid()}));if(b.owner)OWNER={...OWNER_DEFAULT,...b.owner};
-    if(MODE==="local"){await idbClear();for(const a of ASSETS)await idbPut(a);await metaPut("owner",OWNER);dirty=false;}else{dirty=false;}
+    if(MODE==="local"){await saveStore();dirty=false;}else{dirty=false;}
     renderReadout();renderTable();renderLock();updateDbNote();toast(`Loaded ${inc.length} watch${inc.length!==1?"es":""}.`);});}
 
 /* ── Print ── */
@@ -1003,10 +1182,10 @@ function confirmDlg(title,msg,cb){$("#confTitle").textContent=title;$("#confMsg"
 /* ── Mode ── */
 function setMode(m,fromInit){if(m===MODE&&!fromInit)return;
   if(m==="vault"&&MODE==="local"){confirmDlg("Switch to Vault-only?","Your collection stays loaded in memory but the local browser database will be cleared, so nothing plaintext is left on this machine. Export an encrypted vault first if you haven't. Changes after this won't persist until you save a vault.",async()=>{await idbClear();MODE="vault";dirty=true;applyMode();toast("Vault-only mode. Save an encrypted vault before closing.");});return;}
-  if(m==="local"&&MODE==="vault"){(async()=>{MODE="local";for(const a of ASSETS)await idbPut(a);await metaPut("owner",OWNER);applyMode();})();return;}
+  if(m==="local"&&MODE==="vault"){(async()=>{MODE="local";if(!MK){await beginCreate("Choose a passphrase. It encrypts everything stored on this machine.");return;}await saveStore();applyMode();})();return;}
   MODE=m;applyMode(fromInit);}
 function applyMode(fromInit){$$("#modeSeg button").forEach(b=>b.classList.toggle("on",b.dataset.mode===MODE));
-  $("#modeDesc").textContent=MODE==="vault"?"in memory only · nothing written to this machine":"persists in this browser's database";
+  $("#modeDesc").textContent=MODE==="vault"?"in memory only · nothing written to this machine":"encrypted on this machine · unlocks with your passphrase";
   if(MODE==="local"&&!fromInit){metaPut("mode","local");}else if(MODE==="vault"){try{localStorage.removeItem("x");}catch(e){}}
   try{localStorage.setItem("wr_mode",MODE);}catch(e){}
   renderLock();updateDbNote();}
@@ -1019,6 +1198,30 @@ function updateDbNote(){$("#dbNote").textContent=MODE==="vault"?(ASSETS.length+"
 
 /* ── Wiring ── */
 function wire(){
+  $("#unlockGo").addEventListener("click",()=>tryUnlock($("#lockPass").value,"pass","#unlockErr"));
+  $("#lockPass").addEventListener("keydown",e=>{if(e.key==="Enter")tryUnlock($("#lockPass").value,"pass","#unlockErr");});
+  $("#useRecovery").addEventListener("click",()=>{$("#lockRc").value="";$("#rcErr").textContent="";showStep("stepRecovery");setTimeout(()=>$("#lockRc").focus(),50);});
+  $("#usePassphrase").addEventListener("click",()=>{$("#unlockErr").textContent="";showStep("stepUnlock");setTimeout(()=>$("#lockPass").focus(),50);});
+  $("#rcGo").addEventListener("click",()=>tryUnlock(normRecovery($("#lockRc").value),"recovery","#rcErr"));
+  $("#lockRc").addEventListener("keydown",e=>{if(e.key==="Enter")tryUnlock(normRecovery($("#lockRc").value),"recovery","#rcErr");});
+  $("#createGo").addEventListener("click",createStep1);
+  $("#newPass").addEventListener("keydown",e=>{if(e.key==="Enter")$("#newPass2").focus();});
+  $("#newPass2").addEventListener("keydown",e=>{if(e.key==="Enter")createStep1();});
+  $("#rcDone").addEventListener("click",createFinish);
+  $("#rcCopy").addEventListener("click",async()=>{try{await navigator.clipboard.writeText($("#rcOut").textContent);toast("Recovery key copied — paste it somewhere permanent now.");}catch(e){toast("Copy failed; write it down instead.",true);}});
+  $("#migBackup").addEventListener("click",exportPlain);
+  $("#migGo").addEventListener("click",()=>beginCreate("Choose a passphrase. Your existing records will be encrypted with it, and the unencrypted copy erased."));
+  $("#btnLock").addEventListener("click",()=>{if(MK)lockNow(false);else toast("Nothing to lock — no encrypted register open.",true);});
+  $("#mChangePass").addEventListener("click",()=>{$("#menuScrim").classList.remove("on");
+    if(!MK){toast("Unlock first.",true);return;}
+    askPass({confirm:true,title:"Change passphrase",msg:"Choose a new passphrase. Your data is not re-encrypted — only the key wrapping changes, so your recovery key still works.",
+      onOk:async np=>{try{await changePassphrase(np);toast("Passphrase changed.");}catch(e){toast("Failed: "+e.message,true);}}});});
+
+  const sel=$("#idleSel");sel.value=String(idleMins());
+  sel.addEventListener("change",e=>{try{localStorage.setItem("wr_idle",e.target.value);}catch(err){}resetIdle();
+    toast(e.target.value==="0"?"Auto-lock off.":`Auto-locks after ${e.target.value} minutes idle.`);});
+  ["mousemove","keydown","click","scroll","touchstart"].forEach(ev=>
+    document.addEventListener(ev,resetIdle,{passive:true}));
   $("#wordmark").innerHTML=WORDMARK==="REGISTER"?"RE<b>GISTER</b>":esc(WORDMARK);
   $("#btnAdd").addEventListener("click",()=>openForm());
   $("#btnOwner").addEventListener("click",openOwner);
@@ -1056,7 +1259,7 @@ function wire(){
   $("#csvFileInput").addEventListener("change",e=>{if(e.target.files[0])handleImportCsvFile(e.target.files[0]);});
   $("#mPrintIns").addEventListener("click",printInsurance);
   $("#mPrintEst").addEventListener("click",printEstate);
-  $("#mWipe").addEventListener("click",()=>{$("#menuScrim").classList.remove("on");confirmDlg("Erase local database?","Clears the register from this browser. Exported vault files are untouched. Cannot be undone.",async()=>{await idbClear();ASSETS=[];OWNER={...OWNER_DEFAULT};renderReadout();renderTable();updateDbNote();toast("Local database erased.",true);});});
+  $("#mWipe").addEventListener("click",()=>{$("#menuScrim").classList.remove("on");confirmDlg("Erase encrypted register?","Erases the encrypted register from this machine, along with its passphrase and recovery key. Exported vault files are untouched. Cannot be undone.",async()=>{await idbClear();await metaDel(STORE_KEY);await metaDel("owner");await metaDel("seeded");MK=null;STORE_PKG=null;ASSETS=[];OWNER={...OWNER_DEFAULT};editingId=null;clearIdle();renderReadout();renderTable();updateDbNote();toast("Register erased from this machine.",true);beginCreate("Set a passphrase to start a new encrypted register on this machine.");});});
   $("#pwOk").addEventListener("click",pwSubmit);
   $("#pwCancel").addEventListener("click",()=>{$("#pwScrim").classList.remove("on");pwState=null;});
   $("#pwClose").addEventListener("click",()=>{$("#pwScrim").classList.remove("on");pwState=null;});
@@ -1080,25 +1283,115 @@ function wire(){
 }
 
 /* ── Init ── */
+/* ── Lock / unlock / first-run setup ── */
+let idleTimer=null, pendingMigration=null;
+const idleMins=()=>{let v=15;try{v=parseInt(localStorage.getItem("wr_idle")||"15",10);}catch(e){}return isNaN(v)?15:v;};
+function clearIdle(){if(idleTimer){clearTimeout(idleTimer);idleTimer=null;}}
+function resetIdle(){
+  clearIdle();
+  const m=idleMins();
+  if(!m||MODE!=="local"||!MK)return;
+  idleTimer=setTimeout(()=>{if(MK)lockNow(true);},m*60000);
+}
+function showStep(id){
+  ["stepUnlock","stepRecovery","stepCreate","stepShowRc","stepMigrate"].forEach(s=>
+    $("#"+s).classList.toggle("on",s===id));
+  $("#lockScreen").classList.add("on");
+}
+function hideLock(){$("#lockScreen").classList.remove("on");}
+/* Dropping MK is what actually re-secures the app; clearing ASSETS just stops
+   the decrypted copy sitting in memory behind the overlay. */
+function lockNow(auto){
+  MK=null;ASSETS=[];OWNER={...OWNER_DEFAULT};editingId=null;
+  clearIdle();closeDrawer(false);
+  ["#formScrim","#menuScrim","#ownerScrim","#confScrim","#pwScrim","#helpScrim","#succScrim"].forEach(s=>$(s).classList.remove("on"));
+  renderReadout();renderTable();updateDbNote();
+  $("#lockPass").value="";$("#unlockErr").textContent="";
+  $("#unlockMsg").textContent=auto?"Locked after inactivity. Enter your passphrase to continue.":"Enter your passphrase to unlock this register.";
+  showStep("stepUnlock");
+  setTimeout(()=>$("#lockPass").focus(),50);
+}
+window.lockNow=lockNow;
+async function tryUnlock(secret,which,errEl){
+  const el=$(errEl);el.textContent="Unlocking…";
+  try{
+    const pkg=await metaGet(STORE_KEY);
+    if(!pkg){el.textContent="No encrypted register found on this machine.";return;}
+    await unlockStore(pkg,secret,which);
+    try{const stale=await idbAll();if(stale.length){await idbClear();await metaDel("owner");}}catch(e){}
+    $("#unlockErr").textContent="";$("#rcErr").textContent="";
+    $("#lockPass").value="";$("#lockRc").value="";
+    hideLock();
+    try{const n=await migratePhotos();if(n)toast(`Optimised ${n} stored photo${n!==1?"s":""}.`);}catch(e){}
+    applyMode(true);renderReadout();renderTable();updateDbNote();renderLock();resetIdle();
+  }catch(e){
+    el.textContent=which==="pass"?"Wrong passphrase.":"That recovery key doesn't match.";
+  }
+}
+function beginCreate(msg){
+  $("#createMsg").textContent=msg||"Choose a passphrase. It encrypts everything this app stores on this machine — nothing is readable without it.";
+  $("#newPass").value="";$("#newPass2").value="";$("#createErr").textContent="";
+  showStep("stepCreate");setTimeout(()=>$("#newPass").focus(),50);
+}
+let pendingPass=null,pendingCode=null;
+function createStep1(){
+  const a=$("#newPass").value,b=$("#newPass2").value;
+  if(a.length<8){$("#createErr").textContent="Use at least 8 characters.";return;}
+  if(a!==b){$("#createErr").textContent="Passphrases don't match.";return;}
+  pendingPass=a;pendingCode=newRecoveryCode();
+  $("#rcOut").textContent=pendingCode;$("#rcAck").checked=false;$("#rcAckErr").textContent="";
+  showStep("stepShowRc");
+}
+async function createFinish(){
+  if(!$("#rcAck").checked){$("#rcAckErr").textContent="Confirm you've stored the recovery key.";return;}
+  $("#rcAckErr").textContent="Encrypting…";
+  try{
+    await createStore(pendingPass,pendingCode);
+    /* Prove the round-trip before destroying the plaintext copy. */
+    const check=await metaGet(STORE_KEY);
+    const probe=await unwrapMK(check.wraps.pass,pendingPass);
+    await decWith(probe,check.data);
+    if(pendingMigration){await idbClear();await metaDel("owner");await metaDel("seeded");pendingMigration=null;}
+    pendingPass=null;pendingCode=null;
+    hideLock();
+    applyMode(true);renderReadout();renderTable();updateDbNote();renderLock();resetIdle();
+    toast("Encrypted. Your register is now locked to this passphrase.");
+  }catch(e){
+    $("#rcAckErr").textContent="Setup failed: "+e.message;
+  }
+}
+
 (async function init(){
   wire();
-  if(!cryptoAvailable())toast("Encrypted vaults need a secure context — see How it works.",true);
   let savedMode=null;try{savedMode=localStorage.getItem("wr_mode");}catch(e){}
   try{_db=await openDB();}catch(e){toast("Local database unavailable; file import/export still works.",true);}
   MODE=(savedMode==="vault")?"vault":"local";
+
+  if(!cryptoAvailable()){
+    toast("WebCrypto unavailable — this build cannot encrypt. Do not store real data.",true);
+    MODE="vault";
+  }
+
   if(MODE==="local"&&_db){
-    ASSETS=await idbAll();
-    const savedOwner=await metaGet("owner");if(savedOwner)OWNER={...OWNER_DEFAULT,...savedOwner};
-    const seeded=await metaGet("seeded");
-    if(ASSETS.length===0&&!seeded){
-      ASSETS=SEED_DATA.map(a=>({...a,createdAt:Date.now()}));
-      for(const a of ASSETS)await idbPut(a);
-      await metaPut("owner",OWNER);await metaPut("seeded",true);
-      let hid=null;try{hid=localStorage.getItem("wr_banner");}catch(e){}
-      if(hid!=="hid"&&SEED_DATA.length>0)$("#banner").style.display="flex";
+    const pkg=await metaGet(STORE_KEY);
+    if(pkg){                                  /* normal path: locked at rest */
+      applyMode(true);renderReadout();renderTable();updateDbNote();renderLock();
+      lockNow(false);return;
     }
-  }else{ASSETS=[];}
-  try{const n=await migratePhotos();if(n)toast(`Optimised ${n} stored photo${n!==1?"s":""}.`);}catch(e){}
+    const legacy=await idbAll();              /* upgrading from a plaintext build */
+    if(legacy.length){
+      ASSETS=legacy;
+      const savedOwner=await metaGet("owner");if(savedOwner)OWNER={...OWNER_DEFAULT,...savedOwner};
+      pendingMigration=true;
+      $("#migCount").textContent=String(legacy.length);
+      applyMode(true);renderReadout();renderTable();updateDbNote();renderLock();
+      showStep("stepMigrate");return;
+    }
+    applyMode(true);renderReadout();renderTable();updateDbNote();renderLock();
+    beginCreate();return;                     /* first run */
+  }
+
+  ASSETS=[];
   applyMode(true);renderReadout();renderTable();updateDbNote();renderLock();
 })();
 </script>
