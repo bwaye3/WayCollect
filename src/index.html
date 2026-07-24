@@ -273,6 +273,12 @@
   .cover-empty{width:76px;height:76px;border-radius:3px;border:1px dashed var(--line-2);flex:none;display:flex;align-items:center;justify-content:center;color:var(--muted-2);font-family:var(--mono);font-size:9px;text-align:center;line-height:1.4}
   .cover-acts{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
   .cover-note{font-size:11px;color:var(--muted-2);line-height:1.5}
+  .multi{display:flex;flex-direction:column;gap:10px}
+  .multi-g{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+  .multi-l{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted-2);width:82px;flex:none}
+  .multi .mo{background:transparent;border:1px solid var(--line-2);color:var(--muted);font-size:11.5px;padding:5px 10px;border-radius:999px;cursor:pointer;transition:all .12s}
+  .multi .mo:hover{border-color:var(--brass-dim);color:var(--prose)}
+  .multi .mo.on{background:var(--brass-wash);border-color:var(--brass);color:var(--brass)}
   .starcell{white-space:nowrap}
   .starcell .star-read{font-size:11px}
   .chip.seek{border-color:var(--ok);color:var(--ok)}
@@ -497,6 +503,7 @@
       <select class="sel" id="fRot"><option value="">Any rotation</option></select>
       <select class="sel" id="fDisp"><option value="">Any disposition</option><option value="Heirloom">Heirloom</option><option value="Investment">Investment</option><option value="Sentimental">Sentimental</option><option value="Tool">Tool</option><option value="Undecided">Undecided</option><option value="__none">Unassigned</option></select>
       <select class="sel" id="fCover"><option value="">Any coverage</option><option value="under">Underinsured</option><option value="ok">Covered</option><option value="none">Uninsured</option></select>
+      <select class="sel" id="fComp"><option value="">Any complication</option><option value="__any">Has complications</option><option value="Perpetual calendar">Perpetual calendar</option><option value="Annual calendar">Annual calendar</option><option value="Chronograph">Chronograph</option><option value="Split-seconds">Split-seconds</option><option value="GMT / dual time">GMT / dual time</option><option value="Worldtimer">Worldtimer</option><option value="Moonphase">Moonphase</option><option value="Minute repeater">Minute repeater</option><option value="Tourbillon">Tourbillon</option><option value="Power reserve">Power reserve</option></select>
       <select class="sel" id="fStars"><option value="">Any rating</option><option value="__grail">★ Grails (all)</option><option value="__holy">★ Holy grails</option>
         <option value="5">★★★★★</option><option value="4">★★★★ and up</option><option value="3">★★★ and up</option><option value="__none">Unrated</option></select>
       <select class="sel" id="fStatus"><option value="">All</option><option value="Active">Owned</option><option value="Seeking">Seeking</option><option value="Sold">Sold</option><option value="Lost">Lost</option></select>
@@ -721,6 +728,46 @@ const OWNER_DEFAULT = {
   executor:"", passphraseCustody:"", successionNotes:""
 };
 
+/* Complications are what a high-end piece IS, and they are plural -- a grand
+   complication carries several. Free text could not be filtered and drifted
+   between entries; forcing a single value is what produced the "Field/Moon"
+   category during CSV import. Grouped roughly as the trade does. */
+const COMPLICATIONS=[
+  ["Calendar",["Date","Day-date","Triple calendar","Annual calendar","Perpetual calendar","Equation of time"]],
+  ["Chronograph",["Chronograph","Flyback","Split-seconds","Monopusher"]],
+  ["Time",["GMT / dual time","Worldtimer","Jumping hours","Retrograde"]],
+  ["Astronomical",["Moonphase","Sky chart"]],
+  ["Chiming",["Alarm","Minute repeater","Petite sonnerie","Grande sonnerie"]],
+  ["Mechanical",["Tourbillon","Karrusel","Constant force","Power reserve","Deadbeat seconds"]],
+];
+const COMP_ALL=COMPLICATIONS.flatMap(g=>g[1]);
+/* Collectors write shorthand: "GMT" not "GMT / dual time", "rattrapante" not
+   "split-seconds". Without these the term survives as unmatched free text and
+   silently stops being filterable. */
+const COMP_ALIAS={"gmt":"GMT / dual time","dualtime":"GMT / dual time","secondtimezone":"GMT / dual time",
+  "worldtime":"Worldtimer","worldtimer":"Worldtimer","rattrapante":"Split-seconds","splitseconds":"Split-seconds",
+  "doublechronograph":"Split-seconds","chrono":"Chronograph","moonphase":"Moonphase","moon":"Moonphase",
+  "perpetual":"Perpetual calendar","qp":"Perpetual calendar","annual":"Annual calendar",
+  "repeater":"Minute repeater","minuterepeater":"Minute repeater","powerreserve":"Power reserve",
+  "powerreserveindicator":"Power reserve","reserveindicator":"Power reserve","daydate":"Day-date",
+  "tripledate":"Triple calendar","completecalendar":"Triple calendar","jumphour":"Jumping hours",
+  "deadseconds":"Deadbeat seconds","secondemorte":"Deadbeat seconds","tourbillion":"Tourbillon"};
+const compArr=v=>Array.isArray(v)?v.filter(Boolean):(typeof v==="string"&&v.trim()?v.split(/[,;/]+/).map(x=>x.trim()).filter(Boolean):[]);
+/* Existing entries hold free text like "GMT, chronograph, date". Match what we
+   recognise to the vocabulary, keep the rest verbatim rather than discarding
+   anything the owner wrote. */
+function normComps(v){
+  const seen=[],extra=[];
+  for(const raw of compArr(v)){
+    const hit=COMP_ALL.find(c=>c.toLowerCase()===raw.toLowerCase()
+      ||c.toLowerCase().replace(/[^a-z]/g,"")===raw.toLowerCase().replace(/[^a-z]/g,""));
+    const key=raw.toLowerCase().replace(/[^a-z]/g,"");
+    const resolved=hit||COMP_ALIAS[key];
+    if(resolved){if(!seen.includes(resolved))seen.push(resolved);}
+    else if(!extra.includes(raw))extra.push(raw);
+  }
+  return seen.concat(extra);
+}
 const CATEGORIES=["Dive","Dress","Field","Pilot","Chronograph","Field/Moon","Other"];
 const ROTATIONS=["Daily Beater","Weekend Warrior","Activity Specific","Social / Evening","Special Occasion","Vault / Collector"];
 const DISPLAY_CUR="$";
@@ -789,7 +836,7 @@ const FIELDS_ADV=[
   {k:"movementBase",label:"Movement base",type:"select",opts:["","In-house","Modified ETA","Modified Sellita","Modified Miyota","Modified — other","Unknown"],def:""},
   {k:"powerReserve",label:"Power reserve",type:"text",mono:true,placeholder:"70 hours"},
   {k:"jewelCount",label:"Jewel count",type:"text",mono:true,placeholder:"31"},
-  {k:"complications",label:"Complications",type:"text",placeholder:"GMT, chronograph, date"},
+  {k:"complications",label:"Complications",type:"multi",opts:COMPLICATIONS,def:"",hint:"what the watch does — several may apply"},
   {k:"waterResistance",label:"Water resistance",type:"text",mono:true,placeholder:"300m"},
   {sec:"Aesthetics & construction"},
   {k:"dialColor",label:"Dial color",type:"text",placeholder:"Black"},
@@ -884,7 +931,7 @@ let OWNER={...OWNER_DEFAULT};
 let MODE="local";           // 'local' | 'vault'
 let dirty=false;            // unsaved changes in vault-only mode
 let editingId=null, formPhotos=[], formServiceLog=[], formDocs=[], formThumb=null;
-const ui={q:"",cat:"",rot:"",disp:"",cover:"",status:"",stars:"",sortKey:"marketValue",sortDir:-1};
+const ui={q:"",cat:"",rot:"",disp:"",cover:"",status:"",stars:"",comp:"",sortKey:"marketValue",sortDir:-1};
 
 /* ── Utils ── */
 const $=s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll(s));
@@ -1135,6 +1182,8 @@ function currentRows(){let r=ASSETS.slice();const q=ui.q.trim().toLowerCase();
   if(ui.disp){if(ui.disp==="__none")r=r.filter(a=>!a.disposition);else r=r.filter(a=>a.disposition===ui.disp);}
   if(ui.cover)r=r.filter(a=>coverageState(a)===ui.cover);
   if(ui.status)r=r.filter(a=>ui.status==="Active"?isOwned(a):a.status===ui.status);
+  if(ui.comp)r=ui.comp==="__any"?r.filter(a=>normComps(a.complications).length)
+    :r.filter(a=>normComps(a.complications).includes(ui.comp));
   if(ui.stars)r=ui.stars==="__grail"?r.filter(a=>grailVal(a)!==""):ui.stars==="__holy"?r.filter(a=>grailVal(a)==="Holy grail"):ui.stars==="__none"?r.filter(a=>!(+a.stars)):r.filter(a=>(+a.stars||0)>=+ui.stars);
   const k=ui.sortKey,d=ui.sortDir;
   r.sort((a,b)=>{if(["msrp","acquiredPrice","marketValue","scheduledValue","stars"].includes(k)){return((num(a[k])??-Infinity)-(num(b[k])??-Infinity))*d;}let x=(a[k]||"").toString().toLowerCase(),y=(b[k]||"").toString().toLowerCase();return x<y?-1*d:x>y?1*d:0;});
@@ -1227,7 +1276,7 @@ function openDrawer(id){const a=ASSETS.find(x=>x.id===id);if(!a)return;editingId
   const lossB=isLost(a)?[kv("Loss",a.lossType),kv("Date of loss",fmtDate(a.lossDate)),kv("Police report",a.policeReport,1),kv("Claim no.",a.claimNumber,1),kv("Settlement",fmtMoney(a.settlementAmount),1),kv("Settled",fmtDate(a.settlementDate)),kv("Circumstances",a.lossNotes)].join(""):"";
   const dutiesPlusShip=(num(a.dutiesPaid)||0)+(num(a.shippingCost)||0);
   const costBasisLine=(dutiesPlusShip>0&&a.acquiredPrice!=null)?`<div class="cost-basis-line">Total cost basis (incl. duties/shipping): ${fmtMoney(num(a.acquiredPrice)+dutiesPlusShip)}${a.purchaseCurrency&&a.purchaseCurrency!=="USD"?" "+esc(a.purchaseCurrency):""}</div>`:"";
-  const mechB=[kv("Movement type",a.movementType),kv("Movement base",a.movementBase),kv("Power reserve",a.powerReserve,1),kv("Jewels",a.jewelCount,1),kv("Complications",a.complications),kv("Water resistance",a.waterResistance,1)].join("");
+  const mechB=[kv("Movement type",a.movementType),kv("Movement base",a.movementBase),kv("Power reserve",a.powerReserve,1),kv("Jewels",a.jewelCount,1),kv("Complications",normComps(a.complications).join(" · ")),kv("Water resistance",a.waterResistance,1)].join("");
   const aesB=[kv("Dial color",a.dialColor),kv("Dial finish",a.dialFinish),kv("Bezel material",a.bezelMaterial),kv("Crystal",a.crystalType),kv("Lume",a.lumeType),kv("Strap / bracelet",a.strapMaterial),kv("Clasp",a.claspType),kv("Lug width",a.lugWidth,1),kv("Country of manufacture",a.countryOfManufacture)].join("");
   const provB=[kv("Acquisition channel",a.acquisitionChannel),kv("Limited edition no.",a.limitedEditionNumber,1),kv("Auth/warranty card no.",a.authCardNumber,1),kv("Auction house",a.auctionHouse),kv("Auction lot",a.auctionLot,1),kv("Import/duty status",a.importDutyStatus)].join("");
   const finB=[kv("Purchase currency",a.purchaseCurrency),kv("Duties/tariffs paid",fmtMoney(a.dutiesPaid),1),kv("Shipping/insurance",fmtMoney(a.shippingCost),1),kv("Value source",a.valueSource),kv("Appraiser",a.appraiser),kv("Appraisal date",fmtDate(a.appraisalDate)),kv("Appraisal ref.",a.appraisalRef)].join("");
@@ -1241,7 +1290,11 @@ function closeDrawer(clear){$("#scrim").classList.remove("on");$("#drawer").clas
 /* ── Form ── */
 function buildGrid(grid,defs){grid.innerHTML="";defs.forEach(f=>{if(f.sec){const s=document.createElement("div");s.className="sec-label";s.textContent=f.sec;grid.appendChild(s);return;}
   const wrap=document.createElement("div");wrap.className="field"+(f.full?" full":"");wrap.dataset.k=f.k;let ctl;
-  if(f.type==="tri")ctl=`<input type="hidden" id="fld_${f.k}"><div class="tgl" data-for="${f.k}">`+["Grail","Holy grail"].map(o=>`<button type="button" class="tg" data-val="${o}" aria-pressed="false">\u2605 ${o}</button>`).join("")+`</div>`;
+  if(f.type==="multi")ctl=`<input type="hidden" id="fld_${f.k}"><div class="multi" data-for="${f.k}">`+
+    f.opts.map(g=>`<div class="multi-g"><span class="multi-l">${esc(g[0])}</span>`+
+      g[1].map(o=>`<button type="button" class="mo" data-v="${esc(o)}" aria-pressed="false">${esc(o)}</button>`).join("")+
+      `</div>`).join("")+`</div>`;
+  else if(f.type==="tri")ctl=`<input type="hidden" id="fld_${f.k}"><div class="tgl" data-for="${f.k}">`+["Grail","Holy grail"].map(o=>`<button type="button" class="tg" data-val="${o}" aria-pressed="false">\u2605 ${o}</button>`).join("")+`</div>`;
   else if(f.type==="stars")ctl=`<input type="hidden" id="fld_${f.k}"><div class="stars" data-for="${f.k}">`+
     [1,2,3,4,5].map(n=>`<button type="button" class="st" data-v="${n}" aria-label="${n} star${n>1?"s":""}">★</button>`).join("")+
     `<button type="button" class="clr" data-v="0">clear</button></div>`;
@@ -1253,6 +1306,9 @@ function buildGrid(grid,defs){grid.innerHTML="";defs.forEach(f=>{if(f.sec){const
 const setF=(k,v)=>{const el=$("#fld_"+k);if(el){el.value=(v==null?"":v);if(el.type==="hidden")paintStars();}};
 function paintStars(){$$(".stars").forEach(w=>{const v=+(($("#fld_"+w.dataset.for)||{}).value||0);
   w.querySelectorAll(".st").forEach(b=>b.classList.toggle("on",+b.dataset.v<=v));});
+  $$(".multi").forEach(w=>{const cur=compArr(($("#fld_"+w.dataset.for)||{}).value);
+    w.querySelectorAll(".mo").forEach(b=>{const on=cur.includes(b.dataset.v);
+      b.classList.toggle("on",on);b.setAttribute("aria-pressed",on?"true":"false");});});
   $$(".tgl").forEach(w=>{const v=(($("#fld_"+w.dataset.for)||{}).value)||"";
     w.querySelectorAll(".tg").forEach(b=>{const on=b.dataset.val===v;b.classList.toggle("on",on);b.setAttribute("aria-pressed",on?"true":"false");});});}
 const starRead=n=>{n=+n||0;return n?`<span class="star-read">${"★".repeat(n)}<span class="off">${"★".repeat(5-n)}</span></span>`:"";};
@@ -1325,11 +1381,11 @@ function openForm(asset){editingId=asset?asset.id:null;$("#formTitle").textConte
   renderServiceLog();
   $("#advancedWrap").style.display="none";$("#advToggle").textContent="+ Full detail — movement, aesthetics, provenance, financial, storage, insurance";
   FIELDS_CORE.concat(FIELDS_ADV).forEach(f=>{if(f.k&&f.def!=null)setF(f.k,f.def);});
-  if(asset)FIELD_KEYS.forEach(k=>{if(asset[k]===undefined)return;let v=asset[k];if(k==="insured")v=(asset.insured===true||asset.insured==="Yes")?"Yes":"No";if(k==="grail")v=grailVal(asset);setF(k,v);});
+  if(asset)FIELD_KEYS.forEach(k=>{if(asset[k]===undefined)return;let v=asset[k];if(k==="insured")v=(asset.insured===true||asset.insured==="Yes")?"Yes":"No";if(k==="grail")v=grailVal(asset);if(k==="complications")v=normComps(asset.complications).join(", ");setF(k,v);});
   paintStars();
   $$("#formGrid .field,#formGridAdv .field").forEach(el=>el.classList.remove("filled"));
   $("#menuScrim").classList.remove("on");$("#formScrim").classList.add("on");setTimeout(()=>$("#fld_maker")&&$("#fld_maker").focus(),40);}
-function collectForm(){const r={};FIELD_KEYS.forEach(k=>r[k]=getF(k));MONEY_KEYS.forEach(k=>{const n=num(r[k]);r[k]=n!=null?n:null;});r.warrantyYears=num(r.warrantyYears);r.stars=r.stars?+r.stars:null;r.grail=r.grail||"";r.insured=(r.insured==="Yes");r.photos=formPhotos.map(p=>({...p}));r.thumb=formThumb?{...formThumb}:null;r.documents=formDocs.map(d=>({...d}));r.serviceHistory=formServiceLog.map(s=>({...s}));
+function collectForm(){const r={};FIELD_KEYS.forEach(k=>r[k]=getF(k));MONEY_KEYS.forEach(k=>{const n=num(r[k]);r[k]=n!=null?n:null;});r.warrantyYears=num(r.warrantyYears);r.stars=r.stars?+r.stars:null;r.grail=r.grail||"";r.complications=normComps(r.complications);r.insured=(r.insured==="Yes");r.photos=formPhotos.map(p=>({...p}));r.thumb=formThumb?{...formThumb}:null;r.documents=formDocs.map(d=>({...d}));r.serviceHistory=formServiceLog.map(s=>({...s}));
   if(r.serviceHistory.length){const newest=r.serviceHistory.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||""))[0];if(newest.date)r.lastService=newest.date;if(newest.by)r.serviceBy=newest.by;}
   return r;}
 async function saveForm(again){const data=collectForm();if(!data.maker&&!data.model&&!data.reference){toast("Add at least a maker, model, or reference.",true);return;}
@@ -1646,7 +1702,7 @@ function applyMode(fromInit){$$("#modeSeg button").forEach(b=>b.classList.toggle
   renderLock();updateDbNote();}
 
 /* ── misc ── */
-function clearFilters(){ui.q="";ui.cat="";ui.rot="";ui.disp="";ui.cover="";ui.status="";ui.stars="";$("#search").value="";["fCat","fRot","fDisp","fCover","fStatus","fStars"].forEach(id=>$("#"+id).value="");renderTable();}
+function clearFilters(){ui.q="";ui.cat="";ui.rot="";ui.disp="";ui.cover="";ui.status="";ui.stars="";ui.comp="";$("#search").value="";["fCat","fRot","fDisp","fCover","fStatus","fStars","fComp"].forEach(id=>$("#"+id).value="");renderTable();}
 window.clearFilters=clearFilters;window.openForm=openForm;
 function deleteAsset(id){const a=ASSETS.find(x=>x.id===id);if(!a)return;confirmDlg("Remove this watch?",`“${[a.maker,a.model].filter(Boolean).join(" ")||"Untitled"}” will be removed. Export a backup first if unsure.`,async()=>{await removeAsset(id);closeDrawer();renderReadout();renderTable();updateDbNote();toast("Removed.");});}
 async function refreshMirrorLine(){
@@ -1736,9 +1792,13 @@ function wire(){
   document.addEventListener("click",e=>{const b=e.target.closest("[data-act]");if(!b)return;
     ({add:()=>openForm(),import:importFlow,clearFilters:clearFilters})[b.dataset.act]?.();});
   $("#fStars").addEventListener("change",e=>{ui.stars=e.target.value;renderTable();});
+  $("#fComp").addEventListener("change",e=>{ui.comp=e.target.value;renderTable();});
   document.addEventListener("click",e=>{const b=e.target.closest(".stars .st,.stars .clr");if(!b)return;
     const w=b.closest(".stars"),el=$("#fld_"+w.dataset.for),v=+b.dataset.v;
     el.value=(v&&+el.value===v)?"":String(v||"");paintStars();});
+  document.addEventListener("click",e=>{const b=e.target.closest(".multi .mo");if(!b)return;
+    const el=$("#fld_"+b.closest(".multi").dataset.for);const cur=compArr(el.value);const v=b.dataset.v;
+    el.value=(cur.includes(v)?cur.filter(x=>x!==v):cur.concat([v])).join(", ");paintStars();});
   document.addEventListener("click",e=>{const b=e.target.closest(".tgl .tg");if(!b)return;
     const el=$("#fld_"+b.closest(".tgl").dataset.for);el.value=(el.value===b.dataset.val)?"":b.dataset.val;paintStars();});
   $("#scrim").addEventListener("click",()=>closeDrawer());
