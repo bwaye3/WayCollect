@@ -17,13 +17,19 @@ data lives in it** — see "Never do this" below.
   build step for the frontend without discussing it first. `tauri.conf.json`
   → `frontendDist` points straight at the `src/` folder; there is nothing
   for a bundler to do.
-- `src-tauri/` is a thin Rust shell (`lib.rs`/`main.rs` are near-default
-  Tauri boilerplate). **v1 does no custom Rust work** — no filesystem
-  commands, no vault logic in Rust. The app still uses the same
-  browser-standard WebCrypto (AES-256-GCM, envelope encryption) and
-  IndexedDB it used as a plain browser file. Native filesystem control
-  (real wipe-on-exit, no-download-dialog vault read/write) is the
-  documented next increment, not yet built.
+- `src-tauri/` holds the Rust shell. As of v1.15.0 it defines three
+  commands — `store_write`, `store_read`, `store_info` — which write the
+  already-sealed register to a path the app chooses rather than one WebKit
+  derives. **Stage 1: this is a mirror only.** IndexedDB remains the source
+  of truth and nothing reads from the file yet, so a bug there costs an
+  unused file rather than a collection. Only ciphertext crosses the
+  boundary; the passphrase and master key never leave the webview.
+  `app.withGlobalTauri` is enabled so the page can invoke those commands —
+  acceptable specifically because `connect-src 'none'` means no remote
+  script can ever reach the bridge. Encryption is unchanged and stays in
+  the webview: browser-standard WebCrypto, AES-256-GCM, envelope design.
+  Still to come: reads served from the file (stage 2), then retiring
+  IndexedDB (stage 3), then wipe-on-exit and dialog-free vault I/O.
 - `package.json` exists **only** to let `npx tauri` run (the CLI ships as a
   precompiled npm binary — no Rust needed to use it for icon-gen, `info`,
   etc.). There is no frontend build script because there's nothing to build.
@@ -65,15 +71,18 @@ Builds happen on GitHub's hosted runners, never locally. This is a
 deliberate constraint (avoiding a Rust toolchain on a monitored work
 laptop), not a limitation to "fix" by adding local build docs.
 
-**Bump the version in THREE files before tagging** — `src-tauri/tauri.conf.json`,
-`src-tauri/Cargo.toml`, `package.json`. The git tag does not set the app
-version. This was missed for v0.1.0 through v0.1.3, so every one of those
+**Bump the version in FOUR files before tagging** — `src-tauri/tauri.conf.json`,
+`src-tauri/Cargo.toml`, `package.json`, and the `watch-register` entry in
+`src-tauri/Cargo.lock`. The git tag does not set the app version.
+`tools/check-frontend.py` verifies all four agree, so run it before pushing —
+`cargo check --locked` fails if the lockfile is missed, and the other three
+produce identically-named installers. This was missed for v0.1.0 through v0.1.3, so every one of those
 builds produced an identically-named `Watch Register_0.1.0_*.dmg` with no way
 to tell them apart — which made "is the fix actually in the build I'm testing?"
 unanswerable and cost two ambiguous debugging rounds.
 
 ```bash
-# 1. bump the three manifests to X.Y.Z first
+# 1. bump all four manifests to X.Y.Z first (check-frontend.py verifies)
 git commit -am "…"
 git tag vX.Y.Z
 git push origin main
