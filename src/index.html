@@ -279,6 +279,10 @@
   .faq-ul{padding-left:16px}
   .faq-ul li{margin-bottom:5px}
   .faq-defs div{margin-bottom:6px}
+  .cover-mount{display:flex;justify-content:center;padding:4px 0 14px;border-bottom:1px solid var(--line);margin-bottom:14px}
+  .cover-mount .cover-slot{justify-content:center}
+  .media-sec{margin-top:14px}
+  .media-sec>.sec-label{margin-top:0}
   .cover-slot{display:flex;align-items:center;gap:14px}
   .cover-pic{width:76px;height:76px;border-radius:3px;object-fit:cover;border:1px solid var(--line-2);flex:none;cursor:zoom-in}
   .cover-empty{width:76px;height:76px;border-radius:3px;border:1px dashed var(--line-2);flex:none;display:flex;align-items:center;justify-content:center;color:var(--muted-2);font-family:var(--mono);font-size:9px;text-align:center;line-height:1.4}
@@ -617,21 +621,12 @@
 <div class="modal-scrim" id="formScrim"><div class="modal">
   <div class="modal-head"><h3 id="formTitle">Add watch</h3><button class="x" id="formClose"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
   <div class="modal-body">
+    <div id="coverMount"></div>
     <div class="paste-block"><div class="hd"><span class="eyebrow">Paste a listing — auto-fill</span><button class="btn ghost sm" id="parseBtn">Parse ↴</button></div>
       <textarea class="paste" id="pasteBox" placeholder="e.g.  1955 Omega Automatic Bumper, cal. 344, 34mm, papers only, worn — $1,250"></textarea>
       <div class="paste-note">Fills empty fields only, highlights what it found. Nothing saves until you press Save. Text never leaves this machine.</div></div>
     <div class="grid" id="formGrid"></div>
-
-      <div class="sec-label u-mt2">Service history</div>
-      <div class="service-log" id="serviceLogList"></div>
-      <div class="svc-add">
-        <input id="svcDate" type="date" title="Date">
-        <input id="svcBy" type="text" placeholder="Serviced by" title="Servicer">
-        <input id="svcCost" data-num inputmode="decimal" placeholder="Cost" title="Cost">
-        <input id="svcAccuracy" type="text" placeholder="Measured accuracy (optional)" title="Accuracy">
-        <input id="svcWork" type="text" placeholder="Work performed" class="f2" title="Work performed">
-        <button class="btn sm svc-add-btn" id="svcAddBtn" type="button">+ Add service record</button>
-      </div>
+    <div id="mediaMount"></div>
   </div>
   <div class="modal-foot"><button class="btn ghost" id="formCancel">Cancel</button>
     <div class="u-row8"><button class="btn" id="formSaveNew">Save &amp; add another</button><button class="btn primary" id="formSave">Save watch</button></div></div>
@@ -1409,8 +1404,9 @@ function refreshSecSummaries(){
   const cur={};FIELD_KEYS.forEach(k=>cur[k]=getF(k));
   cur.complications=normComps(cur.complications);
   $$("#formGrid details.sec").forEach(d=>{
-    const fn=SEC_SUMMARY[d.dataset.sec];
-    const parts=fn?fn(cur).filter(Boolean):[];
+    let parts;
+    if(d.id==="svcSec"){parts=formServiceLog.length?[formServiceLog.length+" record"+(formServiceLog.length!==1?"s":"")]:[];}
+    else{const fn=SEC_SUMMARY[d.dataset.sec];parts=fn?fn(cur).filter(Boolean):[];}
     const el=d.querySelector(".sec-sum");
     if(el)el.textContent=parts.length?parts.join(" \u00b7 "):"\u2014";});
 }
@@ -1470,16 +1466,35 @@ function openForm(asset){editingId=asset?asset.id:null;$("#formTitle").textConte
   formServiceLog=asset&&asset.serviceHistory?asset.serviceHistory.map(s=>({...s})):[];
   formDocs=asset&&asset.documents?asset.documents.map(d=>({...d})):[];
   buildGrid($("#formGrid"),FIELDS);
-  const cs=document.createElement("div");cs.className="sec-label";cs.textContent="Cover image";$("#formGrid").appendChild(cs);
-  const cf=document.createElement("div");cf.className="field full";
-  cf.innerHTML=`<label>The single picture shown for this watch in your register</label><div class="cover-slot" id="coverSlot"></div><input type="file" id="thumbInput" accept="image/*" class="u-hide">`;
-  $("#formGrid").appendChild(cf);
+  // Cover image: fixed at the very top, above the paste box, as the visual
+  // anchor confirming which record you are editing. Not an accordion.
+  {const m=$("#coverMount");m.className="cover-mount";
+    m.innerHTML=`<div class="field full"><div class="cover-slot" id="coverSlot"></div><input type="file" id="thumbInput" accept="image/*" class="u-hide"></div>`;}
   renderCoverSlot();
-  const ps=document.createElement("div");ps.className="sec-label";ps.textContent="Photographs";$("#formGrid").appendChild(ps);
-  const pf=document.createElement("div");pf.className="field full";pf.innerHTML=`<label>Images — stored locally, embedded in the vault</label><div class="photo-strip" id="photoStrip"></div><input type="file" id="photoInput" accept="image/*" multiple class="u-hide">`;$("#formGrid").appendChild(pf);
+
+  // Service history: its own accordion, appended after the field sections so it
+  // sits under Service & warranty. Collapsed by default.
+  {const d=document.createElement("details");d.className="sec";d.id="svcSec";
+    d.innerHTML=`<summary><span class="sec-name">Service history</span><span class="sec-sum"></span></summary>`;
+    const body=document.createElement("div");body.className="sec-grid";
+    body.innerHTML=`<div class="field full"><div class="service-log" id="serviceLogList"></div>`+
+      `<div class="svc-add"><input id="svcDate" type="date" title="Date">`+
+      `<input id="svcBy" type="text" placeholder="Serviced by" title="Servicer">`+
+      `<input id="svcCost" data-num inputmode="decimal" placeholder="Cost" title="Cost">`+
+      `<input id="svcAccuracy" type="text" placeholder="Measured accuracy (optional)" title="Accuracy">`+
+      `<input id="svcWork" type="text" placeholder="Work performed" class="f2" title="Work performed">`+
+      `<button class="btn sm svc-add-btn" id="svcAddBtn" type="button">+ Add service record</button></div></div>`;
+    d.appendChild(body);$("#formGrid").appendChild(d);}
+
+  // Photographs and Documents: plain sections at the bottom, not accordions.
+  {const wrap=$("#mediaMount");wrap.innerHTML="";
+    const p1=document.createElement("div");p1.className="media-sec";
+    p1.innerHTML=`<div class="sec-label">Photographs</div><div class="field full"><label>Images — stored locally, embedded in the vault</label><div class="photo-strip" id="photoStrip"></div><input type="file" id="photoInput" accept="image/*" multiple class="u-hide"></div>`;
+    wrap.appendChild(p1);
+    const p2=document.createElement("div");p2.className="media-sec";
+    p2.innerHTML=`<div class="sec-label">Documents</div><div class="field full"><label>Invoices, warranty cards, appraisals — kept at full quality, never recompressed</label><div class="doc-list" id="docList"></div><input type="file" id="docInput" accept="image/*,application/pdf" multiple class="u-hide"></div>`;
+    wrap.appendChild(p2);}
   renderPhotoStrip();
-  const dsec=document.createElement("div");dsec.className="sec-label";dsec.textContent="Documents";$("#formGrid").appendChild(dsec);
-  const dfld=document.createElement("div");dfld.className="field full";dfld.innerHTML=`<label>Invoices, warranty cards, appraisals — kept at full quality, never recompressed</label><div class="doc-list" id="docList"></div><input type="file" id="docInput" accept="image/*,application/pdf" multiple class="u-hide">`;$("#formGrid").appendChild(dfld);
   renderDocList();
   renderServiceLog();
   FIELDS.forEach(f=>{if(f.k&&f.def!=null)setF(f.k,f.def);});
