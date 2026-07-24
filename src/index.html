@@ -960,6 +960,51 @@ const STORE_KEY="store";
 const nativeAPI=()=>{const t=window.__TAURI__;return t&&t.core&&typeof t.core.invoke==="function"?t.core:null;};
 const isNative=()=>!!nativeAPI();
 let mirrorState={ok:null,bytes:0,at:0,err:null};
+let storeSource="—";
+/* Each save stamps a monotonic revision outside the ciphertext. Reads take
+   whichever copy is newer and immediately repair the other, so the two can
+   never silently diverge -- which is the one way "prefer the file" could lose
+   work: a file write failing unnoticed, then a stale file winning the next
+   load. The counter leaks only a save count; the payload stays sealed and
+   AES-GCM still authenticates it. */
+const revOf=p=>(p&&typeof p.rev==="number")?p.rev:0;
+let fileReadErr=null;
+async function fileReadPkg(){
+  fileReadErr=null;
+  const api=nativeAPI();if(!api)return null;
+  let raw;
+  try{raw=await api.invoke("store_read");}
+  catch(e){fileReadErr="could not be read: "+String(e&&e.message||e);return null;}
+  if(raw==null)return null;
+  /* An unreadable file and an absent one need different messages -- reporting
+     "no file yet" for a corrupt one sends you looking in the wrong place. */
+  try{return JSON.parse(raw);}
+  catch(e){fileReadErr="is present but unreadable (damaged or truncated)";return null;}
+}
+async function readStorePkg(){
+  const fromDb=await metaGet(STORE_KEY);
+  const fromFile=await fileReadPkg();
+  if(!fromDb&&!fromFile){storeSource="none";return null;}
+  if(!fromFile){storeSource=!isNative()?"database":(fileReadErr?("database — the file "+fileReadErr):"database (no file yet)");return fromDb;}
+  if(!fromDb){storeSource="file (database empty)";
+    try{await metaPutStrict(STORE_KEY,fromFile);}catch(e){}
+    return fromFile;}
+  const rf=revOf(fromFile),rd=revOf(fromDb);
+  if(rf>rd){storeSource="file (newer than database — database repaired)";
+    try{await metaPutStrict(STORE_KEY,fromFile);}catch(e){}
+    return fromFile;}
+  if(rd>rf){storeSource="database (newer than file — file repaired)";
+    mirrorWrite(fromDb);
+    return fromDb;}
+  /* Equal revisions. Prefer the file in normal operation so the read path is
+     exercised every day rather than lying untested until the orphaning it
+     exists to survive. The exception is the one-time upgrade, where neither
+     copy is stamped yet and the database is still the proven source of
+     truth. */
+  if(rf===0&&rd===0){storeSource="database (pre-upgrade copies)";return fromDb;}
+  storeSource="file (in sync)";
+  return fromFile;
+}
 async function mirrorWrite(pkg){
   const api=nativeAPI();if(!api)return false;
   try{
@@ -983,13 +1028,14 @@ async function mirrorVerify(){
   try{
     const onDisk=await api.invoke("store_read");
     if(onDisk==null)return{ok:false,reason:"no file written yet"};
-    const expect=JSON.stringify(await metaGet(STORE_KEY));
+    const expect=JSON.stringify(STORE_PKG||await metaGet(STORE_KEY));
     if(onDisk===expect)return{ok:true,bytes:onDisk.length};
     return{ok:false,reason:`file differs from the database (${onDisk.length} vs ${expect.length} bytes)`};
   }catch(e){return{ok:false,reason:String(e&&e.message||e)};}
 }
 let MK=null;          /* unwrapped master key — memory only, never persisted */
 let STORE_PKG=null;   /* the sealed package; .data is replaced on each save */
+let STORE_REV=0;      /* monotonic, so the two copies can be compared */
 
 async function wrapMK(mk,secret){
   const salt=crypto.getRandomValues(new Uint8Array(16));
@@ -1037,6 +1083,8 @@ async function createStore(pass,code){
 async function saveStore(){
   if(!MK||!STORE_PKG)return;
   STORE_PKG.data=await encWith(MK,{assets:ASSETS,owner:OWNER});
+  STORE_REV=Math.max(STORE_REV,revOf(STORE_PKG))+1;
+  STORE_PKG.rev=STORE_REV;STORE_PKG.savedAt=Date.now();
   try{await metaPutStrict(STORE_KEY,STORE_PKG);}
   catch(e){toast("Could not save to disk — your changes are only in memory. Export a vault now.",true);throw e;}
   mirrorWrite(STORE_PKG);   /* stage 1: advisory copy, never blocks or fails the save */
@@ -1578,7 +1626,7 @@ async function refreshMirrorLine(){
   const i=await mirrorInfo();
   if(!i||i.error){el.textContent="Native file storage — unavailable"+(i&&i.error?" ("+i.error+")":"")+".";return;}
   if(!i.exists){el.textContent="Native file storage — no copy written yet. Save any change to create one.";return;}
-  el.textContent="Native file copy — "+fmtSize(i.bytes)+", written "+new Date(i.modified_ms).toLocaleString()+". Not in use yet.";
+  el.textContent="Native file storage — "+fmtSize(i.bytes)+", written "+new Date(i.modified_ms).toLocaleString()+". Loaded from: "+storeSource+".";
 }
 function updateDbNote(){$("#dbNote").textContent=MODE==="vault"?(ASSETS.length+" in memory · no local trace"):(ASSETS.length+" record"+(ASSETS.length!==1?"s":"")+" · local DB");}
 
@@ -1616,7 +1664,7 @@ function wire(){
     noticeDlg(r.ok?"Native copy verified":"Native copy not verified",
       r.ok?("The file on disk matches your register exactly, byte for byte.\n\n"+
             (info&&info.path?info.path+"\n":"")+fmtSize(r.bytes)+"\n\n"+
-            "This copy is not in use yet — your register still loads from browser storage. It is being written so it can be verified before anything depends on it.")
+            "Your register now loads from this file. A copy is still kept in browser storage as a fallback, and whichever is newer wins — so the two cannot drift apart.")
           :("Reason: "+r.reason+"\n\n"+(info&&info.path?"Expected at:\n"+info.path+"\n\n":"")+
             "Nothing is wrong with your collection — it is stored as it always has been. This only affects the additional file copy."));
     refreshMirrorLine();});
@@ -1760,9 +1808,10 @@ window.lockNow=lockNow;
 async function tryUnlock(secret,which,errEl){
   const el=$(errEl);el.textContent="Unlocking…";
   try{
-    const pkg=await metaGet(STORE_KEY);
+    const pkg=await readStorePkg();
     if(!pkg){el.textContent="No encrypted register found on this machine.";return;}
     await unlockStore(pkg,secret,which);
+    STORE_REV=revOf(pkg);
     try{const stale=await idbAll();if(stale.length){await idbClear();await metaDel("owner");}}catch(e){}
     $("#unlockErr").textContent="";$("#rcErr").textContent="";
     $("#lockPass").value="";$("#lockRc").value="";
@@ -1818,7 +1867,7 @@ async function createFinish(){
   }
 
   if(MODE==="local"&&_db){
-    const pkg=await metaGet(STORE_KEY);
+    const pkg=await readStorePkg();
     if(pkg){                                  /* normal path: locked at rest */
       applyMode(true);renderReadout();renderTable();updateDbNote();renderLock();
       lockNow(false);return;
