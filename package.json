@@ -1,6 +1,6 @@
 {
   "name": "watch-register",
-  "version": "1.19.0",
+  "version": "1.19.1",
   "private": true,
   "description": "Local-first, air-gapped asset & provenance register",
   "author": "Bradley Waye <bradwaye@gmail.com>",
