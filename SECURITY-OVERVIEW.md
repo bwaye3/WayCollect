@@ -168,15 +168,30 @@ envelope encryption, for offsite backup or handing to an executor.
 commands. This exposes the Tauri IPC bridge to page context.
 
 **Assessment:** the risk of an exposed IPC bridge is that hostile script
-reaches it. In this application no hostile script can exist — `connect-src
-'none'` and `default-src 'self'` mean no remote code can be loaded, and there
-is no user-supplied HTML rendering path. The only script that ever executes is
-the one shipped inside the signed bundle. The three exposed commands read and
-write one fixed filename inside the app's own data directory; none accept a
+reaches it. No *remote* script can — `connect-src 'none'` and `default-src
+'self'` mean nothing external loads. The three exposed commands read and write
+one fixed filename inside the app's own data directory; none accept a
 caller-supplied path.
 
-**This is nevertheless the weakest structural claim in the design**, and the
-first thing a reviewer should push on.
+**A reviewer found the gap in the original version of this claim, and it was
+real.** An earlier draft asserted there was "no user-supplied HTML rendering
+path". That was wrong. Imported files supplied their own record identifiers,
+which were interpolated unescaped into a `data-id` attribute — a crafted
+import could break out of the attribute and install a working event handler.
+Combined with the exposed bridge, that is a genuine path from "user opens a
+malicious backup file" to "script invokes native commands".
+
+Fixed in v1.17.0 at both levels: identifiers and URLs are escaped at render,
+and imported records have their identifiers regenerated rather than trusted,
+with attachment payloads filtered to an allowlist of `data:` types
+(`javascript:`, `data:text/html` and SVG are all rejected). 17 assertions
+cover it.
+
+The residual risk is unchanged in kind: any future unescaped interpolation of
+untrusted data becomes reachable because the bridge is exposed. **This remains
+the weakest structural claim in the design.** The stronger fix — dropping
+`withGlobalTauri` in favour of an imported `invoke` — currently conflicts with
+the zero-build-step frontend, and that trade has not been made yet.
 
 ---
 
@@ -206,7 +221,9 @@ Listed deliberately. A reviewer should start here.
    is in webview memory. Malware running as the user, or a memory dump of a
    running process, would expose it. Standard for any application with
    decrypted data in memory; no mitigation attempted.
-2. **`withGlobalTauri` exposes the IPC bridge** to page context (§5).
+2. **`withGlobalTauri` exposes the IPC bridge** to page context (§5). One
+   XSS path through imported files was found by review and fixed; the
+   structural exposure remains.
 3. **Not notarized.** Users must bypass Gatekeeper on first launch, which is
    exactly the habit a security tool should not be teaching.
 4. **PBKDF2 rather than Argon2id.** 250,000 SHA-256 iterations is above the

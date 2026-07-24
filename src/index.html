@@ -967,6 +967,21 @@ let storeSource="—";
    work: a file write failing unnoticed, then a stale file winning the next
    load. The counter leaks only a save count; the payload stays sealed and
    AES-GCM still authenticates it. */
+/* Identifiers are internal and carry no meaning outside this app, so any that
+   arrive in an imported file are replaced rather than validated. A crafted id
+   was able to break out of the data-id attribute and install a working event
+   handler -- regenerating removes the class of bug rather than patching one
+   instance of it. Attachment payloads are filtered to known-safe data: URLs. */
+function sanitizeAsset(a){
+  const o={...a,id:uuid()};
+  const pics=p=>({...p,id:uuid(),dataUrl:OK_DATA.test(p&&p.dataUrl||"")?p.dataUrl:"",thumbUrl:OK_DATA.test(p&&p.thumbUrl||"")?p.thumbUrl:""});
+  if(Array.isArray(o.photos))o.photos=o.photos.filter(p=>p&&typeof p==="object").map(pics).filter(p=>p.dataUrl||p.thumbUrl);
+  if(o.thumb&&typeof o.thumb==="object"){const t=pics(o.thumb);o.thumb=(t.dataUrl||t.thumbUrl)?t:null;}
+  if(Array.isArray(o.documents))o.documents=o.documents.filter(d=>d&&typeof d==="object")
+    .map(d=>({...d,id:uuid(),dataUrl:OK_DATA.test(d.dataUrl||"")?d.dataUrl:""})).filter(d=>d.dataUrl);
+  if(Array.isArray(o.serviceHistory))o.serviceHistory=o.serviceHistory.filter(s=>s&&typeof s==="object").map(s=>({...s,id:uuid()}));
+  return o;
+}
 const revOf=p=>(p&&typeof p.rev==="number")?p.rev:0;
 let fileReadErr=null;
 async function fileReadPkg(){
@@ -1093,7 +1108,7 @@ async function unlockStore(pkg,secret,which){
   const mk=await unwrapMK(pkg.wraps[which],secret);
   const body=await decWith(mk,pkg.data);
   MK=mk;STORE_PKG=pkg;
-  ASSETS=(body.assets||[]).map(a=>({...a,id:a.id||uuid()}));
+  ASSETS=(body.assets||[]).map(sanitizeAsset);
   OWNER={...OWNER_DEFAULT,...(body.owner||{})};
 }
 /* Re-wrap the existing MK under a new passphrase. Data is untouched. */
@@ -1159,12 +1174,12 @@ function renderTable(){const rows=currentRows();
        cov==="ok"?`<span class="dot ok"></span><span class="num u-f11">OK</span>`:
        `<span class="dot na"></span><span class="num u-f11 u-muted2">—</span>`);
     const cp=coverPic(a);
-    const thumb=cp?`<img class="thumb" src="${cp.thumbUrl}">`:`<div class="thumb-empty">—</div>`;
+    const thumb=cp?`<img class="thumb" src="${esc(picSrc(cp))}">`:`<div class="thumb-empty">—</div>`;
     const seek=isSeeking(a)?`<span class="chip seek">Seeking</span>`:"";
     const disp=a.disposition==="Heirloom"?`<span class="chip heir">Heirloom${a.heirloomTo?" · "+esc(a.heirloomTo):""}</span>`:a.disposition?`<span class="chip">${esc(a.disposition)}</span>`:"";
     const gv=grailVal(a);const gr=gv?`<span class="chip grail u-ml6">\u2605 ${gv}</span>`:"";
     const rat=a.rating&&a.rating!=="Hold"?`<span class="chip u-ml6 ${a.rating==="Sell"?"sell":""}">${esc(a.rating)}</span>`:"";
-    return `<tr data-id="${a.id}" class="${a.id===editingId?"sel":""} ${isGone(a)?"sold":""}">
+    return `<tr data-id="${esc(a.id)}" class="${a.id===editingId?"sel":""} ${isGone(a)?"sold":""}">
       <td>${thumb}</td>
       <td><div class="cell-obj"><span class="m">${esc(a.maker||"—")} ${esc(a.model||"")}</span><span class="s">${esc([a.rotation,a.caseSize,a.condition].filter(Boolean).join(" · "))}</span></div></td>
       <td><span class="chip rot">${esc(a.category||"—")}</span></td>
@@ -1190,8 +1205,8 @@ function openDrawer(id){const a=ASSETS.find(x=>x.id===id);if(!a)return;editingId
   const w=warrantyInfo(a);let wline="";
   if(w)wline=`<div class="war-line ${w.state}">${w.state==="exp"?"Warranty expired "+fmtDate(w.exp.toISOString().slice(0,10)):w.state==="soon"?"Warranty expires "+fmtDate(w.exp.toISOString().slice(0,10))+` (${w.days}d)`:"Warranty active to "+fmtDate(w.exp.toISOString().slice(0,10))}</div>`;
   const gallery=(a.thumb&&a.thumb.thumbUrl)?[a.thumb].concat(a.photos||[]):(a.photos||[]);
-  const photos=gallery.length?`<div class="photos">${gallery.map((p,pi)=>`<img src="${p.thumbUrl||p.dataUrl}" data-pi="${pi}" alt="">`).join("")}</div>`:"";
-  const docsB=(a.documents&&a.documents.length)?`<div class="spec-sec"><div class="lbl">Documents</div><div class="doc-list">${a.documents.map(d=>`<button type="button" class="doc-row doc-get" data-doc="${d.id}"><span class="doc-ic">${d.mime==="application/pdf"?"PDF":"IMG"}</span><span class="doc-name">${esc(d.name)}</span><span class="doc-size">${fmtSize(d.size||0)}</span><span class="doc-save">save ↓</span></button>`).join("")}</div></div>`:"";
+  const photos=gallery.length?`<div class="photos">${gallery.map((p,pi)=>`<img src="${esc(picSrc(p))}" data-pi="${pi}" alt="">`).join("")}</div>`:"";
+  const docsB=(a.documents&&a.documents.length)?`<div class="spec-sec"><div class="lbl">Documents</div><div class="doc-list">${a.documents.map(d=>`<button type="button" class="doc-row doc-get" data-doc="${esc(d.id)}"><span class="doc-ic">${d.mime==="application/pdf"?"PDF":"IMG"}</span><span class="doc-name">${esc(d.name)}</span><span class="doc-size">${fmtSize(d.size||0)}</span><span class="doc-save">save ↓</span></button>`).join("")}</div></div>`:"";
   const sec=(l,i)=>i.trim()?`<div class="spec-sec"><div class="lbl">${l}</div><dl class="kv">${i}</dl></div>`:"";
   const prose=(l,t)=>(t&&t.trim())?`<div class="spec-sec"><div class="lbl">${l}</div><div class="prose">${esc(t)}</div></div>`:"";
   const idB=[kv("Category",a.category),kv("Rotation",a.rotation),kv("Maker",a.maker),kv("Model",a.model),kv("Reference",a.reference,1),kv("Serial",a.serial,1),kv("Movement",a.movement,1),kv("Case",[a.caseMaterial,a.caseSize].filter(Boolean).join(", ")),kv("Condition",a.condition),kv("Box & papers",a.boxPapers)].join("");
@@ -1240,7 +1255,7 @@ const getF=k=>{const el=$("#fld_"+k);return el?el.value.trim():"";};
 const coverPic=a=>(a.thumb&&a.thumb.thumbUrl)?a.thumb:((a.photos&&a.photos[0]&&a.photos[0].thumbUrl)?a.photos[0]:null);
 function renderCoverSlot(){const w=$("#coverSlot");if(!w)return;
   w.innerHTML=(formThumb&&formThumb.thumbUrl
-      ?`<img class="cover-pic" id="coverPic" src="${formThumb.thumbUrl}" alt="Cover image">`
+      ?`<img class="cover-pic" id="coverPic" src="${esc(picSrc(formThumb))}" alt="Cover image">`
       :`<div class="cover-empty">no<br>cover</div>`)+
     `<div class="cover-acts"><button type="button" class="btn sm" id="coverPick">${formThumb?"Replace image":"Choose image"}</button>`+
     (formThumb?`<button type="button" class="btn sm ghost" id="coverClear">Remove</button>`:"")+
@@ -1248,6 +1263,11 @@ function renderCoverSlot(){const w=$("#coverSlot");if(!w)return;
   $("#coverPick").addEventListener("click",()=>$("#thumbInput").click());
   const c=$("#coverClear");if(c)c.addEventListener("click",()=>{formThumb=null;renderCoverSlot();});
   const im=$("#coverPic");if(im)im.addEventListener("click",()=>openLightbox(formThumb));}
+/* An imported file supplies its own photo/document payloads. Only data: URLs
+   of an expected type are ever emitted into an attribute -- anything else
+   becomes a blank src rather than something the browser might act on. */
+const OK_DATA=/^data:(image\/(png|jpeg|jpg|gif|webp|avif)|application\/pdf);base64,[A-Za-z0-9+/=]*$/;
+const picSrc=p=>{const u=(p&&(p.thumbUrl||p.dataUrl))||"";return OK_DATA.test(u)?u:"";};
 const fmtSize=n=>n>=1048576?(n/1048576).toFixed(1)+" MB":Math.max(1,Math.round(n/1024))+" KB";
 /* Documents are evidence — warranty cards, invoices, appraisals — so unlike
    photos they are stored byte-for-byte as uploaded (image or PDF). They never
@@ -1262,7 +1282,7 @@ function renderDocList(){const list=$("#docList");if(!list)return;
   list.querySelectorAll(".doc-del").forEach(b=>b.addEventListener("click",()=>{formDocs.splice(+b.dataset.i,1);renderDocList();}));}
 let lbCur=null;
 function openLightbox(pic){if(!pic||!pic.dataUrl)return;lbCur=pic;$("#lbImg").src=pic.dataUrl;$("#lbName").textContent=pic.name||"photo";$("#lightbox").classList.add("on");}
-function renderPhotoStrip(){const strip=$("#photoStrip");if(!strip)return;strip.innerHTML=formPhotos.map((p,i)=>`<div class="pv"><img src="${p.thumbUrl||p.dataUrl}"><button data-i="${i}">×</button></div>`).join("")+`<button class="add-photo" id="addPhoto"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add</button>`;$("#addPhoto").addEventListener("click",()=>$("#photoInput").click());strip.querySelectorAll(".pv button").forEach(b=>b.addEventListener("click",()=>{formPhotos.splice(+b.dataset.i,1);renderPhotoStrip();}));
+function renderPhotoStrip(){const strip=$("#photoStrip");if(!strip)return;strip.innerHTML=formPhotos.map((p,i)=>`<div class="pv"><img src="${esc(picSrc(p))}"><button data-i="${i}">×</button></div>`).join("")+`<button class="add-photo" id="addPhoto"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add</button>`;$("#addPhoto").addEventListener("click",()=>$("#photoInput").click());strip.querySelectorAll(".pv button").forEach(b=>b.addEventListener("click",()=>{formPhotos.splice(+b.dataset.i,1);renderPhotoStrip();}));
   strip.querySelectorAll(".pv img").forEach((im,i2)=>im.addEventListener("click",()=>openLightbox(formPhotos[i2])));}
 function svcRowHTML(s,i){return `<div class="svc-row"><div class="f"><span class="l">Date</span><span class="v num">${esc(fmtDate(s.date))||"—"}</span></div><div class="f"><span class="l">By</span><span class="v">${esc(s.by)||"—"}</span></div><div class="f"><span class="l">Cost</span><span class="v num">${s.cost!=null&&s.cost!==""?fmtMoney(s.cost):"—"}</span></div><div class="f"><span class="l">Work</span><span class="v">${esc(s.work)||"—"}</span></div>${s.accuracy?`<div class="f"><span class="l">Accuracy</span><span class="v num">${esc(s.accuracy)}</span></div>`:""}${i!=null?`<button class="del" data-i="${i}" title="Remove">×</button>`:""}</div>`;}
 function renderServiceLog(){const list=$("#serviceLogList");if(!list)return;
@@ -1481,7 +1501,7 @@ async function handleImportFile(file){const text=await file.text();let obj;try{o
   else toast("Unrecognized file format.",true);}
 async function ingest(b){const inc=(b.assets||[]).filter(x=>x&&typeof x==="object");if(!inc.length&&!b.owner){toast("No data found in that file.",true);return;}
   confirmDlg(`Load ${inc.length} watch${inc.length!==1?"es":""}${b.owner?" + owner details":""}?`,"This replaces the current in-memory register (your files are untouched).",async()=>{
-    ASSETS=inc.map(a=>({...a,id:a.id||uuid()}));if(b.owner)OWNER={...OWNER_DEFAULT,...b.owner};
+    ASSETS=inc.map(sanitizeAsset);if(b.owner)OWNER={...OWNER_DEFAULT,...b.owner};
     if(MODE==="local"){await saveStore();dirty=false;}else{dirty=false;}
     renderReadout();renderTable();renderLock();updateDbNote();toast(`Loaded ${inc.length} watch${inc.length!==1?"es":""}.`);});}
 
