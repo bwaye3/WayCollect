@@ -77,12 +77,25 @@ def check_versions():
     pkg = json.loads((ROOT / "package.json").read_text())["version"]
     cargo = re.search(r'^version\s*=\s*"([^"]+)"',
                       (ROOT / "src-tauri" / "Cargo.toml").read_text(), re.M).group(1)
-    if not (tauri == pkg == cargo):
-        fail(f"version mismatch: tauri.conf.json={tauri} package.json={pkg} "
-             f"Cargo.toml={cargo} — all three must agree or releases produce "
-             f"identically-named installers.")
+    # Cargo.lock pins this crate's own version too, so --locked fails the
+    # build if a bump misses it. Four files, not three.
+    lock_path = ROOT / "src-tauri" / "Cargo.lock"
+    lock = None
+    if lock_path.exists():
+        m = re.search(r'name = "watch-register"\nversion = "([^"]+)"', lock_path.read_text())
+        lock = m.group(1) if m else None
+
+    versions = {"tauri.conf.json": tauri, "package.json": pkg, "Cargo.toml": cargo}
+    if lock is not None:
+        versions["Cargo.lock"] = lock
+
+    if len(set(versions.values())) != 1:
+        pairs = "  ".join(f"{k}={v}" for k, v in versions.items())
+        fail(f"version mismatch: {pairs} — all must agree. Cargo.lock pins this "
+             f"crate's own version, so a bump that misses it fails cargo check "
+             f"--locked; the others produce identically-named installers.")
     else:
-        notes.append(f"version {tauri} consistent across all three manifests")
+        notes.append(f"version {tauri} consistent across {len(versions)} manifests")
 
 
 def check_csp():
