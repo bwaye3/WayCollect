@@ -1,6 +1,6 @@
 [package]
 name = "watch-register"
-version = "1.21.0"
+version = "1.22.0"
 description = "Local-first, air-gapped asset & provenance register"
 authors = ["Bradley Waye <bradwaye@gmail.com>"]
 edition = "2021"
