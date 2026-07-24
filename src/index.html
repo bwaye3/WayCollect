@@ -206,9 +206,6 @@
   .field.filled input,.field.filled select,.field.filled textarea{border-color:var(--brass-dim);box-shadow:inset 0 0 0 1px var(--brass-wash)}
   .field .hint{font-size:11px;color:var(--muted-2);margin-top:5px;font-family:var(--mono)}
   .sec-label{grid-column:1/-1;font-family:var(--mono);font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--brass-dim);margin-top:8px;padding-bottom:6px;border-bottom:1px solid var(--line)}
-  .adv-toggle-row{margin:6px 0 4px}
-  .adv-toggle-row .btn{width:100%;justify-content:center;border-style:dashed}
-  #advancedWrap{margin-top:2px}
   .service-log{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
   .svc-row{display:flex;flex-wrap:wrap;gap:3px 16px;align-items:center;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r);padding:9px 12px;font-size:12px}
   .svc-row .f{display:flex;flex-direction:column;gap:1px;min-width:64px}
@@ -544,9 +541,6 @@
       <div class="paste-note">Fills empty fields only, highlights what it found. Nothing saves until you press Save. Text never leaves this machine.</div></div>
     <div class="grid" id="formGrid"></div>
 
-    <div class="adv-toggle-row"><button class="btn ghost sm" id="advToggle" type="button">+ Full detail — movement, aesthetics, provenance, financial, storage, insurance</button></div>
-    <div id="advancedWrap" class="u-hide">
-      <div class="grid" id="formGridAdv"></div>
       <div class="sec-label u-mt2">Service history</div>
       <div class="service-log" id="serviceLogList"></div>
       <div class="svc-add">
@@ -557,7 +551,6 @@
         <input id="svcWork" type="text" placeholder="Work performed" class="f2" title="Work performed">
         <button class="btn sm svc-add-btn" id="svcAddBtn" type="button">+ Add service record</button>
       </div>
-    </div>
   </div>
   <div class="modal-foot"><button class="btn ghost" id="formCancel">Cancel</button>
     <div class="u-row8"><button class="btn" id="formSaveNew">Save &amp; add another</button><button class="btn primary" id="formSave">Save watch</button></div></div>
@@ -774,71 +767,27 @@ const DISPLAY_CUR="$";
 const BRANDS=["Rolex","Omega","Zenith","IWC","Cartier","Tudor","Damasko","Smiths","Nivada","Hanhart","Lorier","Panerai","Seiko","Grand Seiko","Longines","Breitling","Hamilton","Sinn","Oris","Tissot","Baltic","Monta","Laco","Sternglas","Soner","Timex","Christopher Ward","Studio Underdog","Seagull 1963","Echo/Nertua"];
 
 /* schema */
-const FIELDS_CORE=[
-  {sec:"Identification"},
+const FIELDS=[
+  {sec:"The watch"},
   {k:"category",label:"Category",type:"select",opts:CATEGORIES,def:"Field"},
-  {k:"rotation",label:"Rotation status",type:"select",opts:ROTATIONS,def:"Daily Beater"},
-  {k:"status",label:"Status",type:"select",opts:["Seeking",["Active","Owned"],"Sold","Lost"],def:"Active"},
   {k:"maker",label:"Maker / brand",type:"text",placeholder:"Rolex"},
   {k:"model",label:"Model",type:"text",placeholder:"Explorer"},
   {k:"reference",label:"Reference no.",type:"text",mono:true},
   {k:"serial",label:"Serial no.",type:"text",mono:true},
   {k:"movement",label:"Movement / caliber",type:"text",mono:true,placeholder:"cal. 3230"},
-  {k:"caseMaterial",label:"Case material",type:"text"},
-  {k:"caseSize",label:"Case size",type:"text",mono:true,placeholder:"39mm"},
-  {k:"condition",label:"Condition",type:"select",opts:["","Unworn","Mint","Excellent","Worn","Fair"],def:""},
-  {k:"boxPapers",label:"Box & papers",type:"select",opts:["","Full set","Papers only","Box only","Watch only","N/A"],def:""},
-  {k:"complications",label:"Complications",type:"multi",opts:COMPLICATIONS,def:"",full:true,hint:"what the watch does — several may apply"},
-  {sec:"Acquisition"},
-  {k:"acquiredDate",label:"Date of purchase",type:"date"},
-  {k:"msrp",label:"MSRP at purchase",type:"money"},
-  {k:"acquiredPrice",label:"Purchase price",type:"money"},
-  {k:"seller",label:"Dealer / source",type:"text"},
-  {sec:"Valuation & coverage"},
-  {k:"marketValue",label:"Current market value",type:"money",hint:"latest comp"},
-  {k:"insured",label:"Insured",type:"select",opts:["No","Yes"],def:"No"},
-  {k:"scheduledValue",label:"Scheduled (insured) value",type:"money",hint:"rider amount"},
-  {k:"insurerName",label:"Insurer",type:"select",opts:["","Hodinkee","Chubb","Jewelers Mutual","Homeowner's policy","Other / self-insured"],def:""},
-  {k:"insurerOther",label:"Insurer (if other)",type:"text"},
-  {k:"payoutPct",label:"Pays up to",type:"select",opts:["","100% of scheduled","125% of scheduled","150% of scheduled"],def:"",hint:"drives the coverage math — Hodinkee pays to 150%"},
-  {sec:"Warranty"},
-  {k:"warrantyYears",label:"Warranty length (yrs)",type:"text",mono:true,placeholder:"2"},
-  {k:"warrantyStart",label:"Warranty activated",type:"date"},
-  {sec:"Disposition (estate)"},
-  {k:"disposition",label:"Tier",type:"select",opts:["","Undecided","Heirloom","Investment","Sentimental","Tool"],def:"",hint:"what this piece is for"},
-  {k:"heirloomTo",label:"Designated to",type:"text",placeholder:"Brooke"},
-  {k:"rating",label:"Ledger rating",type:"select",opts:["","Hold","Buy","Sell","Watch"],def:"Hold",hint:"what you intend to do"},
-  {k:"stars",label:"Personal rating",type:"stars",def:"",hint:"how much you love it"},
-  {k:"grail",label:"Grail",type:"tri",def:"",hint:"Grail — evaluating or landed · Holy grail — the unattainable one"},
-  {sec:"Service"},
-  {k:"lastService",label:"Last serviced",type:"date"},
-  {k:"serviceBy",label:"Serviced by",type:"text"},
-  {sec:"Sale (if sold)"},
-  {k:"soldDate",label:"Date of sale",type:"date"},
-  {k:"soldPrice",label:"Sale price",type:"money",hint:"gross, before fees"},
-  {k:"soldFees",label:"Selling fees / commission",type:"money",hint:"auction, dealer, platform, shipping"},
-  {k:"soldChannel",label:"Sold via",type:"select",opts:["","Private sale","Dealer","Auction house","Marketplace (Chrono24, eBay)","Forum / community","Trade-in","Consignment"],def:""},
-  {k:"soldTo",label:"Buyer / consignee",type:"text"},
-  {sec:"Loss & insurance claim (if stolen or lost)"},
-  {k:"lossType",label:"Type of loss",type:"select",opts:["","Stolen","Mysterious disappearance","Damaged / destroyed"],def:"",hint:"use your policy's wording"},
-  {k:"lossDate",label:"Date of loss",type:"date"},
-  {k:"policeReport",label:"Police report no.",type:"text",mono:true},
-  {k:"claimNumber",label:"Claim no.",type:"text",mono:true},
-  {k:"settlementAmount",label:"Settlement received",type:"money",hint:"what actually hit your account"},
-  {k:"settlementDate",label:"Settlement date",type:"date"},
-  {k:"lossNotes",label:"Circumstances",type:"textarea",full:true,placeholder:"What happened — adjusters ask"},
-  {sec:"Provenance & notes"},
-  {k:"provenance",label:"Provenance",type:"textarea",full:true,placeholder:"Delivery card, prior owners, service papers, chain of custody…"},
-  {k:"notes",label:"Notes",type:"textarea",full:true},
-];
-const FIELDS_ADV=[
-  {sec:"Movement & mechanical"},
   {k:"movementType",label:"Movement type",type:"select",opts:["","Manual","Automatic","Quartz","Spring Drive"],def:""},
   {k:"movementBase",label:"Movement base",type:"select",opts:["","In-house","Modified ETA","Modified Sellita","Modified Miyota","Modified — other","Unknown"],def:""},
   {k:"powerReserve",label:"Power reserve",type:"text",mono:true,placeholder:"70 hours"},
   {k:"jewelCount",label:"Jewel count",type:"text",mono:true,placeholder:"31"},
+  {k:"caseMaterial",label:"Case material",type:"text"},
+  {k:"caseSize",label:"Case size",type:"text",mono:true,placeholder:"39mm"},
+  {k:"lugWidth",label:"Lug width",type:"text",mono:true,placeholder:"20mm"},
   {k:"waterResistance",label:"Water resistance",type:"text",mono:true,placeholder:"300m"},
-  {sec:"Aesthetics & construction"},
+  {k:"countryOfManufacture",label:"Country of manufacture",type:"text",placeholder:"Swiss Made"},
+  {k:"condition",label:"Condition",type:"select",opts:["","Unworn","Mint","Excellent","Worn","Fair"],def:""},
+  {k:"boxPapers",label:"Box & papers",type:"select",opts:["","Full set","Papers only","Box only","Watch only","N/A"],def:""},
+  {k:"limitedEditionNumber",label:"Limited edition no.",type:"text",mono:true,placeholder:"42/500"},
+  {k:"complications",label:"Complications",type:"multi",opts:COMPLICATIONS,def:"",full:true,hint:"what the watch does — several may apply"},
   {k:"dialColor",label:"Dial color",type:"text",placeholder:"Black"},
   {k:"dialFinish",label:"Dial finish",type:"text",placeholder:"Sunburst"},
   {k:"bezelMaterial",label:"Bezel material",type:"text",placeholder:"Ceramic"},
@@ -846,33 +795,67 @@ const FIELDS_ADV=[
   {k:"lumeType",label:"Lume",type:"text",placeholder:"Super-LumiNova"},
   {k:"strapMaterial",label:"Strap / bracelet",type:"text",placeholder:"Oyster bracelet, steel"},
   {k:"claspType",label:"Clasp",type:"text",placeholder:"Deployant"},
-  {k:"lugWidth",label:"Lug width",type:"text",mono:true,placeholder:"20mm"},
-  {k:"countryOfManufacture",label:"Country of manufacture",type:"text",placeholder:"Swiss Made"},
-  {sec:"Provenance & documentation"},
+  {sec:"Acquisition"},
+  {k:"acquiredDate",label:"Date of purchase",type:"date"},
+  {k:"msrp",label:"MSRP at purchase",type:"money"},
+  {k:"acquiredPrice",label:"Purchase price",type:"money"},
+  {k:"seller",label:"Dealer / source",type:"text"},
   {k:"acquisitionChannel",label:"Acquisition channel",type:"select",opts:["","Authorized dealer","Private sale","Auction house","Grey market","Estate / inheritance"],def:""},
-  {k:"limitedEditionNumber",label:"Limited edition no.",type:"text",mono:true,placeholder:"42/500"},
-  {k:"authCardNumber",label:"Authenticity / warranty card no.",type:"text",mono:true},
-  {k:"auctionHouse",label:"Auction house",type:"text",placeholder:"Christie's, Geneva"},
-  {k:"auctionLot",label:"Auction lot no.",type:"text",mono:true,placeholder:"Lot 118"},
-  {k:"importDutyStatus",label:"Import / duty status",type:"select",opts:["","Not imported","Imported — duty paid","Imported — refund pending","Imported — refund received"],def:""},
-  {sec:"Financial detail"},
   {k:"purchaseCurrency",label:"Purchase currency",type:"select",opts:["USD","GBP","EUR","CHF","JPY","Other"],def:"USD"},
   {k:"dutiesPaid",label:"Duties / tariffs paid",type:"money"},
   {k:"shippingCost",label:"Shipping / insurance-in-transit",type:"money"},
+  {k:"importDutyStatus",label:"Import / duty status",type:"select",opts:["","Not imported","Imported — duty paid","Imported — refund pending","Imported — refund received"],def:""},
+  {k:"auctionHouse",label:"Auction house",type:"text",placeholder:"Christie's, Geneva"},
+  {k:"auctionLot",label:"Auction lot no.",type:"text",mono:true,placeholder:"Lot 118"},
+  {k:"authCardNumber",label:"Authenticity / warranty card no.",type:"text",mono:true},
+  {sec:"Value & insurance"},
+  {k:"marketValue",label:"Current market value",type:"money",hint:"latest comp"},
   {k:"valueSource",label:"Market value source",type:"text",placeholder:"e.g. Chrono24 comp, dealer quote"},
-  {k:"appraiser",label:"Appraiser",type:"text"},
-  {k:"appraisalDate",label:"Appraisal date",type:"date"},
-  {k:"appraisalRef",label:"Appraisal reference",type:"text",placeholder:"doc / policy ref"},
-  {sec:"Storage & wear"},
-  {k:"storageLocation",label:"Storage location",type:"select",opts:["","Worn / in rotation","Home safe","Safe-deposit box","Dehumidifier / watch box","Winder"],def:""},
-  {k:"lastWornDate",label:"Last worn",type:"date"},
-  {sec:"Insurance detail"},
-  
+  {k:"insured",label:"Insured",type:"select",opts:["No","Yes"],def:"No"},
+  {k:"scheduledValue",label:"Scheduled (insured) value",type:"money",hint:"rider amount"},
+  {k:"insurerName",label:"Insurer",type:"select",opts:["","Hodinkee","Chubb","Jewelers Mutual","Homeowner's policy","Other / self-insured"],def:""},
+  {k:"insurerOther",label:"Insurer (if other)",type:"text"},
+  {k:"payoutPct",label:"Pays up to",type:"select",opts:["","100% of scheduled","125% of scheduled","150% of scheduled"],def:"",hint:"drives the coverage math — Hodinkee pays to 150%"},
   {k:"policyNumber",label:"Policy / rider no.",type:"text",mono:true},
   {k:"insuranceRenewal",label:"Renewal date",type:"date"},
   {k:"deductible",label:"Deductible",type:"money"},
+  {k:"appraiser",label:"Appraiser",type:"text"},
+  {k:"appraisalDate",label:"Appraisal date",type:"date"},
+  {k:"appraisalRef",label:"Appraisal reference",type:"text",placeholder:"doc / policy ref"},
+  {sec:"Ownership"},
+  {k:"rotation",label:"Rotation status",type:"select",opts:ROTATIONS,def:"Daily Beater"},
+  {k:"status",label:"Status",type:"select",opts:["Seeking",["Active","Owned"],"Sold","Lost"],def:"Active"},
+  {k:"disposition",label:"Tier",type:"select",opts:["","Undecided","Heirloom","Investment","Sentimental","Tool"],def:"",hint:"what this piece is for"},
+  {k:"heirloomTo",label:"Designated to",type:"text",placeholder:"Brooke"},
+  {k:"rating",label:"Ledger rating",type:"select",opts:["","Hold","Buy","Sell","Watch"],def:"Hold",hint:"what you intend to do"},
+  {k:"stars",label:"Personal rating",type:"stars",def:"",hint:"how much you love it"},
+  {k:"grail",label:"Grail",type:"tri",def:"",hint:"Grail — evaluating or landed · Holy grail — the unattainable one"},
+  {k:"storageLocation",label:"Storage location",type:"select",opts:["","Worn / in rotation","Home safe","Safe-deposit box","Dehumidifier / watch box","Winder"],def:""},
+  {k:"lastWornDate",label:"Last worn",type:"date"},
+  {sec:"Service & warranty"},
+  {k:"warrantyYears",label:"Warranty length (yrs)",type:"text",mono:true,placeholder:"2"},
+  {k:"warrantyStart",label:"Warranty activated",type:"date"},
+  {k:"lastService",label:"Last serviced",type:"date"},
+  {k:"serviceBy",label:"Serviced by",type:"text"},
+  {sec:"Sale"},
+  {k:"soldDate",label:"Date of sale",type:"date"},
+  {k:"soldPrice",label:"Sale price",type:"money",hint:"gross, before fees"},
+  {k:"soldFees",label:"Selling fees / commission",type:"money",hint:"auction, dealer, platform, shipping"},
+  {k:"soldChannel",label:"Sold via",type:"select",opts:["","Private sale","Dealer","Auction house","Marketplace (Chrono24, eBay)","Forum / community","Trade-in","Consignment"],def:""},
+  {k:"soldTo",label:"Buyer / consignee",type:"text"},
+  {sec:"Loss & claim"},
+  {k:"lossType",label:"Type of loss",type:"select",opts:["","Stolen","Mysterious disappearance","Damaged / destroyed"],def:"",hint:"use your policy's wording"},
+  {k:"lossDate",label:"Date of loss",type:"date"},
+  {k:"policeReport",label:"Police report no.",type:"text",mono:true},
+  {k:"claimNumber",label:"Claim no.",type:"text",mono:true},
+  {k:"settlementAmount",label:"Settlement received",type:"money",hint:"what actually hit your account"},
+  {k:"settlementDate",label:"Settlement date",type:"date"},
+  {k:"lossNotes",label:"Circumstances",type:"textarea",full:true,placeholder:"What happened — adjusters ask"},
+  {sec:"Notes"},
+  {k:"provenance",label:"Provenance",type:"textarea",full:true,placeholder:"Delivery card, prior owners, service papers, chain of custody…"},
+  {k:"notes",label:"Notes",type:"textarea",full:true},
 ];
-const FIELD_KEYS=FIELDS_CORE.filter(f=>f.k).map(f=>f.k).concat(FIELDS_ADV.filter(f=>f.k).map(f=>f.k));
+const FIELD_KEYS=FIELDS.filter(f=>f.k).map(f=>f.k);
 const MONEY_KEYS=["msrp","acquiredPrice","marketValue","scheduledValue","soldPrice","soldFees","settlementAmount","dutiesPaid","shippingCost","deductible"];
 /* True cost basis includes what it took to land the watch, not just the sticker.
    Net proceeds subtract what it cost to sell it. Gross sale price flatters
@@ -1288,8 +1271,8 @@ function openDrawer(id){const a=ASSETS.find(x=>x.id===id);if(!a)return;editingId
 function closeDrawer(clear){$("#scrim").classList.remove("on");$("#drawer").classList.remove("on");$("#drawer").setAttribute("aria-hidden","true");if(clear!==false){editingId=null;renderTable();}}
 
 /* ── Form ── */
-function buildGrid(grid,defs){grid.innerHTML="";defs.forEach(f=>{if(f.sec){const s=document.createElement("div");s.className="sec-label";s.textContent=f.sec;grid.appendChild(s);return;}
-  const wrap=document.createElement("div");wrap.className="field"+(f.full?" full":"");wrap.dataset.k=f.k;let ctl;
+function buildGrid(grid,defs){grid.innerHTML="";let curSec="";defs.forEach(f=>{if(f.sec){curSec=f.sec;const s=document.createElement("div");s.className="sec-label";s.dataset.sec=f.sec;s.textContent=f.sec;grid.appendChild(s);return;}
+  const wrap=document.createElement("div");wrap.className="field"+(f.full?" full":"");wrap.dataset.k=f.k;wrap.dataset.sec=curSec;let ctl;
   if(f.type==="multi")ctl=`<input type="hidden" id="fld_${f.k}"><div class="multi" data-for="${f.k}">`+
     f.opts.map(g=>`<div class="multi-g"><span class="multi-l">${esc(g[0])}</span>`+
       g[1].map(o=>`<button type="button" class="mo" data-v="${esc(o)}" aria-pressed="false">${esc(o)}</button>`).join("")+
@@ -1318,6 +1301,16 @@ const getF=k=>{const el=$("#fld_"+k);return el?el.value.trim():"";};
    explicit slot. Falling back to photos[0] keeps every existing record
    rendering exactly as before, so nothing needs migrating. */
 const coverPic=a=>(a.thumb&&a.thumb.thumbUrl)?a.thumb:((a.photos&&a.photos[0]&&a.photos[0].thumbUrl)?a.photos[0]:null);
+/* Sale and Loss are meaningless for a watch you still own, and showing them
+   empty on every record was pure noise on the most common path. They appear
+   when the status says they are relevant, and immediately when it changes. */
+function syncSaleLoss(){
+  const st=($("#fld_status")||{}).value||"";
+  const show={"Sale":st==="Sold","Loss & claim":st==="Lost"};
+  $$('#formGrid [data-sec]').forEach(el=>{
+    const w=show[el.dataset.sec];
+    if(w!==undefined)el.classList.toggle("u-hide",!w);});
+}
 function renderCoverSlot(){const w=$("#coverSlot");if(!w)return;
   w.innerHTML=(formThumb&&formThumb.thumbUrl
       ?`<img class="cover-pic" id="coverPic" src="${esc(picSrc(formThumb))}" alt="Cover image">`
@@ -1365,7 +1358,7 @@ function openForm(asset){editingId=asset?asset.id:null;$("#formTitle").textConte
   formThumb=asset&&asset.thumb?{...asset.thumb}:null;
   formServiceLog=asset&&asset.serviceHistory?asset.serviceHistory.map(s=>({...s})):[];
   formDocs=asset&&asset.documents?asset.documents.map(d=>({...d})):[];
-  buildGrid($("#formGrid"),FIELDS_CORE);
+  buildGrid($("#formGrid"),FIELDS);
   const cs=document.createElement("div");cs.className="sec-label";cs.textContent="Cover image";$("#formGrid").appendChild(cs);
   const cf=document.createElement("div");cf.className="field full";
   cf.innerHTML=`<label>The single picture shown for this watch in your register</label><div class="cover-slot" id="coverSlot"></div><input type="file" id="thumbInput" accept="image/*" class="u-hide">`;
@@ -1377,13 +1370,12 @@ function openForm(asset){editingId=asset?asset.id:null;$("#formTitle").textConte
   const dsec=document.createElement("div");dsec.className="sec-label";dsec.textContent="Documents";$("#formGrid").appendChild(dsec);
   const dfld=document.createElement("div");dfld.className="field full";dfld.innerHTML=`<label>Invoices, warranty cards, appraisals — kept at full quality, never recompressed</label><div class="doc-list" id="docList"></div><input type="file" id="docInput" accept="image/*,application/pdf" multiple class="u-hide">`;$("#formGrid").appendChild(dfld);
   renderDocList();
-  buildGrid($("#formGridAdv"),FIELDS_ADV);
   renderServiceLog();
-  $("#advancedWrap").style.display="none";$("#advToggle").textContent="+ Full detail — movement, aesthetics, provenance, financial, storage, insurance";
-  FIELDS_CORE.concat(FIELDS_ADV).forEach(f=>{if(f.k&&f.def!=null)setF(f.k,f.def);});
+  FIELDS.forEach(f=>{if(f.k&&f.def!=null)setF(f.k,f.def);});
   if(asset)FIELD_KEYS.forEach(k=>{if(asset[k]===undefined)return;let v=asset[k];if(k==="insured")v=(asset.insured===true||asset.insured==="Yes")?"Yes":"No";if(k==="grail")v=grailVal(asset);if(k==="complications")v=normComps(asset.complications).join(", ");setF(k,v);});
   paintStars();
-  $$("#formGrid .field,#formGridAdv .field").forEach(el=>el.classList.remove("filled"));
+  $$("#formGrid .field").forEach(el=>el.classList.remove("filled"));
+  syncSaleLoss();
   $("#menuScrim").classList.remove("on");$("#formScrim").classList.add("on");setTimeout(()=>$("#fld_maker")&&$("#fld_maker").focus(),40);}
 function collectForm(){const r={};FIELD_KEYS.forEach(k=>r[k]=getF(k));MONEY_KEYS.forEach(k=>{const n=num(r[k]);r[k]=n!=null?n:null;});r.warrantyYears=num(r.warrantyYears);r.stars=r.stars?+r.stars:null;r.grail=r.grail||"";r.complications=normComps(r.complications);r.insured=(r.insured==="Yes");r.photos=formPhotos.map(p=>({...p}));r.thumb=formThumb?{...formThumb}:null;r.documents=formDocs.map(d=>({...d}));r.serviceHistory=formServiceLog.map(s=>({...s}));
   if(r.serviceHistory.length){const newest=r.serviceHistory.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||""))[0];if(newest.date)r.lastService=newest.date;if(newest.by)r.serviceBy=newest.by;}
@@ -1723,6 +1715,7 @@ function wire(){
   $("#usePassphrase").addEventListener("click",()=>{$("#unlockErr").textContent="";showStep("stepUnlock");setTimeout(()=>$("#lockPass").focus(),50);});
   $("#rcGo").addEventListener("click",()=>tryUnlock(normRecovery($("#lockRc").value),"recovery","#rcErr"));
   $("#lockRc").addEventListener("keydown",e=>{if(e.key==="Enter")tryUnlock(normRecovery($("#lockRc").value),"recovery","#rcErr");});
+  document.addEventListener("change",e=>{if(e.target&&e.target.id==="fld_status")syncSaleLoss();});
   $("#createGo").addEventListener("click",createStep1);
   $("#newPass").addEventListener("keydown",e=>{if(e.key==="Enter")$("#newPass2").focus();});
   $("#newPass2").addEventListener("keydown",e=>{if(e.key==="Enter")createStep1();});
@@ -1810,7 +1803,6 @@ function wire(){
   $("#formSave").addEventListener("click",()=>saveForm(false));
   $("#formSaveNew").addEventListener("click",()=>saveForm(true));
   $("#parseBtn").addEventListener("click",applyParse);
-  $("#advToggle").addEventListener("click",()=>{const wrap=$("#advancedWrap");const open=wrap.style.display!=="none";wrap.style.display=open?"none":"block";$("#advToggle").textContent=open?"+ Full detail — movement, aesthetics, provenance, financial, storage, insurance":"− Hide full detail";});
   $("#svcAddBtn").addEventListener("click",addServiceEntry);
   document.addEventListener("change",async e=>{if(e.target&&e.target.id==="thumbInput"){const f=(e.target.files||[])[0];
     if(f){try{formThumb=await readImage(f);}catch(err){toast("That image couldn't be read.",true);}renderCoverSlot();}
