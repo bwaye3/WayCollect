@@ -88,9 +88,10 @@ Builds happen on GitHub's hosted runners, never locally. This is a
 deliberate constraint (avoiding a Rust toolchain on a monitored work
 laptop), not a limitation to "fix" by adding local build docs.
 
-**Bump the version in FOUR files before tagging** — `src-tauri/tauri.conf.json`,
-`src-tauri/Cargo.toml`, `package.json`, and the `watch-register` entry in
-`src-tauri/Cargo.lock`. The git tag does not set the app version.
+**Bump the version in FIVE files before tagging** — `src-tauri/tauri.conf.json`,
+`src-tauri/Cargo.toml`, `package.json`, the `watch-register` entry in
+`src-tauri/Cargo.lock`, and `const APP_VERSION` in `src/index.html` (shown in
+the footer). The git tag does not set the app version.
 `tools/check-frontend.py` verifies all four agree, so run it before pushing —
 `cargo check --locked` fails if the lockfile is missed, and the other three
 produce identically-named installers. This was missed for v0.1.0 through v0.1.3, so every one of those

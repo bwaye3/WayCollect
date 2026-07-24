@@ -88,6 +88,12 @@ def check_versions():
     versions = {"tauri.conf.json": tauri, "package.json": pkg, "Cargo.toml": cargo}
     if lock is not None:
         versions["Cargo.lock"] = lock
+    # APP_VERSION is shown in the footer; if it drifts the user is told the
+    # wrong version, which for a support/bug-report context is worse than
+    # useless. Guard it like the manifests.
+    av = re.search(r'const APP_VERSION="([^"]+)"', INDEX.read_text())
+    if av:
+        versions["index.html APP_VERSION"] = av.group(1)
 
     if len(set(versions.values())) != 1:
         pairs = "  ".join(f"{k}={v}" for k, v in versions.items())

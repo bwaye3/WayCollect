@@ -602,6 +602,7 @@
     <a id="lnkTos">Terms of service</a>
     <span class="sp"></span>
     <span class="num" id="dbNote"></span>
+    <span class="num u-muted2" id="appVer"></span>
   </footer>
 </div>
 
@@ -993,6 +994,7 @@ const ui={q:"",cat:"",rot:"",disp:"",cover:"",status:"",stars:"",comp:"",sortKey
 
 /* ── Utils ── */
 const $=s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll(s));
+const APP_VERSION="1.24.0";
 const uuid=()=>crypto.randomUUID?crypto.randomUUID():"id-"+Date.now()+"-"+Math.random().toString(16).slice(2);
 const esc=s=>(s==null?"":String(s)).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const num=v=>{if(typeof v==="number")return isFinite(v)?v:null;const n=parseFloat(String(v??"").replace(/[^0-9.\-]/g,""));return isFinite(n)?n:null;};
@@ -1507,7 +1509,11 @@ function openForm(asset){editingId=asset?asset.id:null;$("#formTitle").textConte
      maker and model is required. Editing opens whatever already has content,
      so the same component reads as filling-in or as reviewing. */
   $$("#formGrid details.sec").forEach((d,i)=>{
-    d.open = i===0;});   /* first section only, always — reviewing a full watch should not open everything */
+    /* New watch: only the first section, so blank fields do not overwhelm.
+       Existing watch: also open any section that already has content, so the
+       form reads as a scannable summary of what is filled in. */
+    const has=(d.querySelector(".sec-sum")||{}).textContent;
+    d.open = asset ? (i===0 || (has && has!=="\u2014")) : i===0;});
   $("#menuScrim").classList.remove("on");$("#formScrim").classList.add("on");setTimeout(()=>$("#fld_maker")&&$("#fld_maker").focus(),40);}
 function collectForm(){const r={};FIELD_KEYS.forEach(k=>r[k]=getF(k));MONEY_KEYS.forEach(k=>{const n=num(r[k]);r[k]=n!=null?n:null;});r.warrantyYears=num(r.warrantyYears);r.stars=r.stars?+r.stars:null;r.grail=r.grail||"";r.complications=normComps(r.complications);r.insured=(r.insured==="Yes");r.photos=formPhotos.map(p=>({...p}));r.thumb=formThumb?{...formThumb}:null;r.documents=formDocs.map(d=>({...d}));r.serviceHistory=formServiceLog.map(s=>({...s}));
   if(r.serviceHistory.length){const newest=r.serviceHistory.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||""))[0];if(newest.date)r.lastService=newest.date;if(newest.by)r.serviceBy=newest.by;}
@@ -1837,7 +1843,8 @@ async function refreshMirrorLine(){
   if(!i.exists){el.textContent="Native file storage — no copy written yet. Save any change to create one.";return;}
   el.textContent="Native file storage — "+fmtSize(i.bytes)+", written "+new Date(i.modified_ms).toLocaleString()+". Loaded from: "+storeSource+".";
 }
-function updateDbNote(){$("#dbNote").textContent=MODE==="vault"?(ASSETS.length+" in memory · no local trace"):(ASSETS.length+" record"+(ASSETS.length!==1?"s":"")+" · local DB");}
+function updateDbNote(){const v=$("#appVer");if(v)v.textContent="v"+APP_VERSION;
+$("#dbNote").textContent=MODE==="vault"?(ASSETS.length+" in memory · no local trace"):(ASSETS.length+" record"+(ASSETS.length!==1?"s":"")+" · local DB");}
 
 /* ── Wiring ── */
 function wire(){
