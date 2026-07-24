@@ -92,13 +92,24 @@ fn store_info(app: tauri::AppHandle) -> Result<StoreInfo, String> {
     })
 }
 
+/// Close the application. Used only by the "No, do not accept" button on the
+/// terms screen, which appears before any vault exists -- so declining creates
+/// nothing and removes nothing. An app that deleted itself because someone
+/// declined terms would be alarming, and could not do so with the permissions
+/// this app grants anyway.
+#[tauri::command]
+fn exit_app(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             store_write,
             store_read,
-            store_info
+            store_info,
+            exit_app
         ])
         .run(tauri::generate_context!())
         .expect("error while running Watch Register");
