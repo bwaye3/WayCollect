@@ -279,5 +279,6 @@ attachment.
 
 ---
 
-*Watch Register — Bradley Waye. Source-available under PolyForm Noncommercial
-1.0.0. Security reports: open an issue, or email for anything sensitive.*
+*Watch Register, built by Bradley Waye, published by WayeCollect Software LLC.
+Source-available under PolyForm Noncommercial 1.0.0. Security reports: open an
+issue, or email for anything sensitive.*

@@ -422,9 +422,10 @@ SECTION 9 — ABOUT AND CONTACT
 
 Q37. Who made this, and how do I get in touch?
 
-A37. Watch Register is built by Bradley Waye. It began as a tool for one
-     person's own collection, which is why it does the unglamorous things
-     properly and none of the flashy things at all.
+A37. Watch Register is built by Bradley Waye and published by WayeCollect
+     Software LLC. It began as a tool for one person's own collection, which
+     is why it does the unglamorous things properly and none of the flashy
+     things at all.
 
      For bugs, questions or suggestions, open an issue on the project's
      GitHub page — that way the answer is there for the next person with the

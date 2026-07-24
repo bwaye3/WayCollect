@@ -17,7 +17,7 @@ build and use it for personal, charitable, educational or research purposes at
 no charge, and nothing in these Terms restricts that. What is licensed here is
 the *distributed build* — the compiled, signed, packaged Application and its
 updates. Commercial use of the software in any form requires a separate
-licence from the developer.
+licence from WayeCollect Software LLC ("the Company").
 
 **Duration.** The licence is perpetual for the product generation you
 purchased, and includes updates released within that generation. It is not
@@ -67,7 +67,7 @@ separate, for the security of your device, and for maintaining your own
 backups — including any encrypted `.vault.json` files you export.
 
 **Unrecoverable loss.** If you lose **both** your passphrase and your recovery
-key, your register cannot be opened by anyone, including the developer. This
+key, your register cannot be opened by anyone, including the Company. This
 is a deliberate property of the design, disclosed to you before setup
 completes and repeatedly in the Application. Likewise, hardware failure or
 deletion without a backup is unrecoverable. **The developer accepts no
@@ -116,14 +116,14 @@ engineering of published source.
 
 **Reporting a vulnerability.** Security issues may be reported through the
 project's issue tracker, or by email for anything sensitive. Findings are
-welcome, including ones that contradict the developer's own claims.
+welcome, including ones that contradict the Company's own claims.
 
 **What is restricted.** You may not resell, sublicense, rent, lease, or
 redistribute the Application or a modified version of it, and you may not use
-it commercially, except under a separate licence from the developer.
+it commercially, except under a separate licence from the Company.
 "Commercial" is as defined in the PolyForm Noncommercial 1.0.0 licence, which
 governs the source code and takes precedence in any conflict with this
-section. Branding, name, logo and documentation remain the developer's
+section. Branding, name, logo and documentation remain the Company's
 property.
 
 ---
@@ -138,7 +138,7 @@ will meet your requirements.
 
 **Distribution and signing.** Builds are produced by an automated public
 pipeline from tagged source. You are responsible for obtaining the Application
-from the official distribution channel; the developer is not responsible for
+from the official distribution channel; the Company is not responsible for
 modified, repackaged or third-party-hosted copies.
 
 **Limitation of liability.** To the maximum extent permitted by law, the
@@ -168,5 +168,5 @@ in force.
 
 ---
 
-*Watch Register — Bradley Waye. Source: github.com/bwaye3/WayCollect ·
+*Watch Register, published by WayeCollect Software LLC. Source: github.com/bwaye3/WayCollect ·
 Commercial licensing: bradwaye@gmail.com*

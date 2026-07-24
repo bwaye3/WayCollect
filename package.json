@@ -1,9 +1,9 @@
 {
   "name": "watch-register",
-  "version": "1.27.0",
+  "version": "1.28.0",
   "private": true,
   "description": "Local-first, air-gapped asset & provenance register",
-  "author": "Bradley Waye <bradwaye@gmail.com>",
+  "author": "WayeCollect Software LLC <bradwaye@gmail.com>",
   "homepage": "https://github.com/bwaye3/WayCollect",
   "repository": {
     "type": "git",

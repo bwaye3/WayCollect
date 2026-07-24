@@ -144,7 +144,8 @@ or a plain export here, even to a private repo.
 
 ## Contact
 
-Built by **Bradley Waye**.
+Watch Register is an open-source, local-first application built by
+**Bradley Waye** and published by **WayeCollect Software LLC**.
 
 - **Bugs, questions, suggestions** — [open an issue](https://github.com/bwaye3/WayCollect/issues).
   Answers there are visible to the next person with the same question.

@@ -1,8 +1,8 @@
 [package]
 name = "watch-register"
-version = "1.27.0"
+version = "1.28.0"
 description = "Local-first, air-gapped asset & provenance register"
-authors = ["Bradley Waye <bradwaye@gmail.com>"]
+authors = ["WayeCollect Software LLC <bradwaye@gmail.com>"]
 edition = "2021"
 homepage = "https://github.com/bwaye3/WayCollect"
 repository = "https://github.com/bwaye3/WayCollect"

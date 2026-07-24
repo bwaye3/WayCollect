@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Watch Register",
-  "version": "1.27.0",
+  "version": "1.28.0",
   "identifier": "app.watchregister.desktop",
   "build": {
     "frontendDist": "../src"
@@ -34,8 +34,8 @@
     "macOS": {
       "signingIdentity": "-"
     },
-    "publisher": "Bradley Waye",
-    "copyright": "Copyright © 2026 Bradley Waye. Licensed under PolyForm Noncommercial 1.0.0.",
+    "publisher": "WayeCollect Software LLC",
+    "copyright": "Copyright © 2026 WayeCollect Software LLC. Licensed under PolyForm Noncommercial 1.0.0.",
     "homepage": "https://github.com/bwaye3/WayCollect",
     "shortDescription": "Local-first, encrypted register for a watch collection.",
     "category": "Finance",
