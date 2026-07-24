@@ -391,6 +391,22 @@
   .lock-actions{display:flex;flex-direction:column;gap:8px;margin-top:12px}
   .lock-alt{font-size:11px}
   .lock-err{color:var(--alert);font-size:11.5px;min-height:17px;margin-top:9px}
+  .tos-screen{position:fixed;inset:0;z-index:250;background:var(--ink);display:none;flex-direction:column;padding:24px}
+  .tos-screen.on{display:flex}
+  .tos-inner{max-width:760px;width:100%;margin:0 auto;display:flex;flex-direction:column;height:100%;gap:14px}
+  .tos-head{flex:none}
+  .tos-head h2{font-size:16px;margin:14px 0 2px;color:var(--text)}
+  .tos-head .lock-sub{margin:0}
+  .tos-body{flex:1;overflow-y:auto;border:1px solid var(--line-2);border-radius:4px;background:var(--surface);padding:20px 24px;min-height:0}
+  .tos-body p{font-size:13px;line-height:1.75;color:var(--prose);margin:0 0 12px}
+  .tos-body b{color:var(--text)}
+  .tos-body code{font-family:var(--mono);font-size:11.5px;color:var(--brass)}
+  .tos-h{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--brass);margin:22px 0 9px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+  .tos-h:first-child{margin-top:0}
+  .tos-foot{font-size:11px;color:var(--muted-2)}
+  .tos-acts{flex:none;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .tos-why{font-size:11.5px;color:var(--muted);flex:1;min-width:180px}
+  .btn[disabled]{opacity:.45;cursor:not-allowed}
   .lock-step{display:none}
   .lock-step.on{display:block}
   .rc-code{font-family:var(--mono);font-size:16px;letter-spacing:.14em;color:var(--brass);background:var(--surface-2);border:1px solid var(--line-2);border-radius:3px;padding:15px 10px;margin:15px 0}
@@ -402,7 +418,57 @@
 </head>
 <body>
 <div class="app" id="app">
-  <div class="lb" id="lightbox"><img id="lbImg" alt="Full-size photo"><div class="lb-bar"><span class="lb-name" id="lbName"></span><button class="btn" id="lbSave">Save full size</button><button class="btn ghost" id="lbClose">Close</button></div></div>
+  <div class="tos-screen" id="tosScreen">
+  <div class="tos-inner">
+    <div class="tos-head">
+      <div class="lock-mark">RE<b>GISTER</b></div>
+      <div class="lock-sub">Watch Collection</div>
+      <h2>Terms of Service &amp; End-User Licence Agreement</h2>
+    </div>
+    <div class="tos-body" id="tosBody" tabindex="0"><!--TERMS:START-->
+      <p><b>DRAFT — not legal advice.</b> Written against the actual v1.20.0 codebase. Every technical claim below is checkable in <code>src/index.html</code>, <code>src-tauri/tauri.conf.json</code> and <code>SECURITY-OVERVIEW.md</code>. Have a lawyer review before taking money.</p>
+      <p>Last updated: 24 July 2026 · Applies to: Watch Register v1.x</p>
+      <div class="tos-h">1. What you are licensed</div>
+      <p><b>Licensed, not sold.</b> Subject to these Terms you are granted a personal, non-exclusive, non-transferable licence to install and use this Application on machines you own or control.</p>
+      <p><b>What the licence covers, and what is already free.</b> The source code of this Application is public and licensed under the PolyForm Noncommercial 1.0.0 licence: anyone may read, audit, build and use it for personal, charitable, educational or research purposes at no charge, and nothing in these Terms restricts that. What is licensed here is the *distributed build* — the compiled, signed, packaged Application and its updates. Commercial use of the software in any form requires a separate licence from the developer.</p>
+      <p><b>Duration.</b> The licence is perpetual for the product generation you purchased, and includes updates released within that generation. It is not tied to version numbers: minor and patch releases are frequent and never affect your access. A future generation representing a substantially redesigned product may be offered separately.</p>
+      <p><b>Termination.</b> The licence terminates if you materially breach these Terms and do not remedy the breach within 32 days of written notice, matching the cure period in the PolyForm licence. Termination does not affect data you have already created — your vault files and register remain yours and remain readable by any build you already hold.</p>
+      <div class="tos-h">2. Local-first architecture, and what that means for you</div>
+      <p><b>The Application cannot transmit your data.</b> This is not a promise of restraint; it is an architectural constraint. The Content Security Policy sets <code>connect-src &#x27;none&#x27;</code>, which disables <code>fetch</code>, <code>XMLHttpRequest</code>, <code>WebSocket</code>, <code>EventSource</code> and <code>sendBeacon</code> at the engine level. The application grants no network capability and contains no HTTP client. There are no servers, no accounts, no telemetry, no analytics, no crash reporting and no update checks.</p>
+      <p><b>No personal data is collected.</b> The developer receives nothing about you, your collection, your usage or your device — not in aggregate, not anonymised, not at all. There is no data controller, no processor, and no data to subject to an access or deletion request, because none is ever transmitted or held.</p>
+      <p><b>Where your data lives.</b> Your register is stored as a single encrypted blob in two places on your own machine: the application&#x27;s local database and a file at <code>register.vault</code> inside the application&#x27;s data directory. Photographs and attached documents are inside that blob. Encryption is AES-256-GCM via the platform&#x27;s WebCrypto implementation; a random master key encrypts your data and is itself wrapped by keys derived from your secrets using PBKDF2-SHA256 at 250,000 iterations.</p>
+      <p><b>Two ways in, both yours alone.</b> Your register can be opened by your passphrase or by the recovery key shown once during setup. Neither can be derived from the other. The developer holds neither, can reconstruct neither, and has no mechanism to recover either.</p>
+      <p><b>Your responsibilities.</b> You are solely responsible for choosing and safeguarding your passphrase, for storing your recovery key somewhere safe and separate, for the security of your device, and for maintaining your own backups — including any encrypted <code>.vault.json</code> files you export.</p>
+      <p><b>Unrecoverable loss.</b> If you lose <b>both</b> your passphrase and your recovery key, your register cannot be opened by anyone, including the developer. This is a deliberate property of the design, disclosed to you before setup completes and repeatedly in the Application. Likewise, hardware failure or deletion without a backup is unrecoverable. <b>The developer accepts no liability of any kind for data that becomes unrecoverable for these or any other reasons.</b></p>
+      <div class="tos-h">3. Valuations, insurance and financial figures</div>
+      <p><b>Every figure originates with you.</b> The Application does not appraise, does not fetch market prices, and does not connect to any pricing service — it cannot, per Section 2. Market values, purchase prices, insured values and any figure the Application displays are values <b>you entered</b>. Totals, gains, losses and coverage warnings are arithmetic performed on your own inputs.</p>
+      <p><b>Informational only.</b> Those outputs exist for personal record-keeping and organisation. They are not an appraisal, a valuation, or financial, tax, legal or insurance advice. The developer is not a licensed appraiser, broker, adjuster, fiduciary or advisor, and no professional relationship is created by your use of the Application.</p>
+      <p><b>Insurance figures in particular.</b> Coverage indicators — including whether a piece is flagged as underinsured, and any payout ceiling calculated from a policy type you selected — are estimates derived from what you entered. They do not reflect your actual policy, your insurer&#x27;s terms, or how a claim would be settled. Printed schedules and registers are working documents you produce, not certified appraisals.</p>
+      <p><b>Verify before relying on any of it.</b> Confirm valuations with a qualified appraiser and coverage with your insurer or broker. <b>The developer assumes no liability for denied or disputed claims, underinsurance, valuation discrepancies, tax positions, or any financial outcome connected to figures displayed by the Application.</b></p>
+      <div class="tos-h">4. Source code, auditability and permitted use</div>
+      <p><b>The source is public, deliberately.</b> A security tool whose claims cannot be independently verified is not worth trusting. You are explicitly encouraged to read, analyse, build and audit the source code, and to verify every claim in these Terms and in the security documentation against it. Nothing in these Terms restricts that, and no clause here should be read as prohibiting reverse engineering of published source.</p>
+      <p><b>Reporting a vulnerability.</b> Security issues may be reported through the project&#x27;s issue tracker, or by email for anything sensitive. Findings are welcome, including ones that contradict the developer&#x27;s own claims.</p>
+      <p><b>What is restricted.</b> You may not resell, sublicense, rent, lease, or redistribute the Application or a modified version of it, and you may not use it commercially, except under a separate licence from the developer. &quot;Commercial&quot; is as defined in the PolyForm Noncommercial 1.0.0 licence, which governs the source code and takes precedence in any conflict with this section. Branding, name, logo and documentation remain the developer&#x27;s property.</p>
+      <div class="tos-h">5. As-is delivery, liability and governing law</div>
+      <p><b>As-is.</b> The Application is provided &quot;AS IS&quot; and &quot;AS AVAILABLE&quot;, without warranty of any kind, express or implied, including implied warranties of merchantability, fitness for a particular purpose, and non-infringement. The developer does not warrant that the Application is free of defects or that it will meet your requirements.</p>
+      <p><b>Distribution and signing.</b> Builds are produced by an automated public pipeline from tagged source. You are responsible for obtaining the Application from the official distribution channel; the developer is not responsible for modified, repackaged or third-party-hosted copies.</p>
+      <p><b>Limitation of liability.</b> To the maximum extent permitted by law, the developer shall not be liable for any indirect, incidental, special, punitive or consequential damages, nor for lost revenue, lost or corrupted data, loss of physical assets, or legal expenses, arising from use of or inability to use the Application. Where liability cannot be excluded, total aggregate liability is limited to the amount you paid for the licence in the twelve months preceding the claim.</p>
+      <p><b>Capacity.</b> You must be of legal age to form a binding contract in your jurisdiction.</p>
+      <p><b>Successors and heirs.</b> The Application is intended in part for estate records. Anyone you grant access to — an executor, heir or advisor — is bound by these Terms when using the Application. The developer has no role in your succession arrangements, holds no keys, and cannot grant access to anyone.</p>
+      <p><b>Changes.</b> These Terms may be updated for future releases. The version accompanying the build you have installed governs your use of that build.</p>
+      <p><b>Governing law.</b> These Terms are governed by the laws of the State of Georgia, USA, without regard to conflict of law principles.</p>
+      <p><b>Severability.</b> If any provision is held unenforceable, the remainder stays in force.</p>
+      <p>*Watch Register — Bradley Waye. Source: github.com/bwaye3/WayCollect · Commercial licensing: bradwaye@gmail.com*</p>
+      <!--TERMS:END--></div>
+    <div class="tos-acts">
+      <span class="tos-why" id="tosWhy">Read to the end to continue.</span>
+      <button class="btn ghost" id="tosNo">No, exit</button>
+      <button class="btn primary" id="tosYes" disabled>Yes, I accept</button>
+    </div>
+  </div>
+</div>
+
+<div class="lb" id="lightbox"><img id="lbImg" alt="Full-size photo"><div class="lb-bar"><span class="lb-name" id="lbName"></span><button class="btn" id="lbSave">Save full size</button><button class="btn ghost" id="lbClose">Close</button></div></div>
 
 <!-- lock / first-run setup -->
 <div class="lock-screen" id="lockScreen">
@@ -515,6 +581,7 @@
     <a id="lnkHelp">How it works</a>
     <a id="lnkSucc">Succession &amp; recovery</a>
     <a id="lnkFaq">Questions &amp; answers</a>
+    <a id="lnkTos">Terms of service</a>
     <span class="sp"></span>
     <span class="num" id="dbNote"></span>
   </footer>
@@ -1843,6 +1910,19 @@ function wire(){
   $("#helpOk").addEventListener("click",()=>$("#helpScrim").classList.remove("on"));
   $("#lnkSucc").addEventListener("click",()=>$("#succScrim").classList.add("on"));
   $("#lnkFaq").addEventListener("click",()=>$("#faqScrim").classList.add("on"));
+  $("#lnkTos").addEventListener("click",()=>showTerms(null));
+  $("#tosBody").addEventListener("scroll",()=>{if(!tosReview)tosCheckScroll();});
+  $("#tosYes").addEventListener("click",()=>{
+    if(tosReview){$("#tosScreen").classList.remove("on");return;}
+    try{localStorage.setItem(TOS_KEY,new Date().toISOString());}catch(e){}
+    $("#tosScreen").classList.remove("on");
+    if(tosBoot){const f=tosBoot;tosBoot=null;f(true);}});
+  $("#tosNo").addEventListener("click",async()=>{
+    /* Declining creates nothing and removes nothing -- no vault exists yet. */
+    const api=nativeAPI();
+    if(api){try{await api.invoke("exit_app");return;}catch(e){}}
+    try{window.close();}catch(e){}
+    noticeDlg("Terms not accepted","Close the application window to exit.");});
   $("#faqClose").addEventListener("click",()=>$("#faqScrim").classList.remove("on"));
   $("#faqOk").addEventListener("click",()=>$("#faqScrim").classList.remove("on"));
   $("#succClose").addEventListener("click",()=>$("#succScrim").classList.remove("on"));
@@ -1858,7 +1938,7 @@ function wire(){
 
 /* ── Init ── */
 /* ── Lock / unlock / first-run setup ── */
-let idleTimer=null, pendingMigration=null, migBackedUp=false;
+let idleTimer=null, pendingMigration=null, migBackedUp=false, tosBoot=null;
 const idleMins=()=>{let v=15;try{v=parseInt(localStorage.getItem("wr_idle")||"15",10);}catch(e){}return isNaN(v)?15:v;};
 function clearIdle(){if(idleTimer){clearTimeout(idleTimer);idleTimer=null;}}
 function resetIdle(){
@@ -1866,6 +1946,31 @@ function resetIdle(){
   const m=idleMins();
   if(!m||MODE!=="local"||!MK)return;
   idleTimer=setTimeout(()=>{if(MK)lockNow(true);},m*60000);
+}
+/* Acceptance is recorded in plain local storage, not in the register: the gate
+   runs before any passphrase exists, so there is nothing encrypted to read yet.
+   Clearing it simply shows the terms again, which is harmless. */
+const TOS_KEY="wr_tos_accepted";
+const tosAccepted=()=>{try{return !!localStorage.getItem(TOS_KEY);}catch(e){return true;}};
+let tosNext=null,tosReview=false;
+function tosCheckScroll(){
+  const el=$("#tosBody"),btn=$("#tosYes"),why=$("#tosWhy");
+  /* If the text does not overflow there is nothing to scroll, and requiring a
+     scroll that cannot happen would trap the user. */
+  const done=el.scrollHeight-el.clientHeight<=4||el.scrollTop+el.clientHeight>=el.scrollHeight-24;
+  btn.disabled=!done;
+  why.textContent=done?"You have reached the end.":"Read to the end to continue.";
+}
+function showTerms(next){
+  tosNext=next||null; tosReview=!next;
+  $("#tosNo").classList.toggle("u-hide",tosReview);
+  $("#tosYes").textContent=tosReview?"Close":"Yes, I accept";
+  $("#tosYes").disabled=false;
+  $("#tosWhy").textContent=tosReview?"":"Read to the end to continue.";
+  $("#tosScreen").classList.add("on");
+  $("#tosBody").scrollTop=0;
+  if(!tosReview)tosCheckScroll();
+  setTimeout(()=>$("#tosBody").focus(),40);
 }
 function showStep(id){
   ["stepUnlock","stepRecovery","stepCreate","stepShowRc","stepMigrate"].forEach(s=>
@@ -1938,6 +2043,7 @@ async function createFinish(){
 
 (async function init(){
   wire();
+  if(!tosAccepted()){showTerms(true);const boot=await new Promise(r=>{tosBoot=r;});if(!boot)return;}
   let savedMode=null;try{savedMode=localStorage.getItem("wr_mode");}catch(e){}
   try{_db=await openDB();}catch(e){toast("Local database unavailable; file import/export still works.",true);}
   MODE=(savedMode==="vault")?"vault":"local";

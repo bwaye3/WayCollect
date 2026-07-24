@@ -146,6 +146,27 @@ def check_faq_in_sync():
         notes.append("in-app FAQ matches FAQ-draft.txt")
 
 
+def check_terms_in_sync():
+    """The text a user legally accepts must be the text in the repo."""
+    src = ROOT / "TERMS-draft.md"
+    builder = ROOT / "tools" / "build-terms.py"
+    if not src.exists() or not builder.exists():
+        return
+    before = INDEX.read_text(encoding="utf-8")
+    r = subprocess.run([sys.executable, str(builder)], capture_output=True, text=True, cwd=ROOT)
+    after = INDEX.read_text(encoding="utf-8")
+    if r.returncode != 0:
+        INDEX.write_text(before, encoding="utf-8")
+        fail(f"tools/build-terms.py failed:\n{r.stdout}{r.stderr}")
+        return
+    if before != after:
+        INDEX.write_text(before, encoding="utf-8")
+        fail("the in-app Terms do not match TERMS-draft.md — run "
+             "`python3 tools/build-terms.py` and commit the result.")
+    else:
+        notes.append("in-app Terms match TERMS-draft.md")
+
+
 def main():
     raw = INDEX.read_text(encoding="utf-8")
     src = strip_comments(raw)
@@ -155,6 +176,7 @@ def main():
     check_versions()
     check_csp()
     check_faq_in_sync()
+    check_terms_in_sync()
 
     for n in notes:
         print(f"  ok    {n}")
