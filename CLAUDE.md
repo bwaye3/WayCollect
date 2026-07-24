@@ -26,11 +26,10 @@ data lives in it** — see "Never do this" below.
   boundary; the passphrase and master key never leave the webview.
   `app.withGlobalTauri` is enabled so the page can invoke those commands —
   acceptable specifically because `connect-src 'none'` means no remote
-  script can ever reach the bridge. The app still uses the same
-  browser-standard WebCrypto (AES-256-GCM, envelope encryption) and
-  IndexedDB it used as a plain browser file. Native filesystem control
-  (real wipe-on-exit, no-download-dialog vault read/write) is the
-  documented next increment, not yet built.
+  script can ever reach the bridge. Encryption is unchanged and stays in
+  the webview: browser-standard WebCrypto, AES-256-GCM, envelope design.
+  Still to come: reads served from the file (stage 2), then retiring
+  IndexedDB (stage 3), then wipe-on-exit and dialog-free vault I/O.
 - `package.json` exists **only** to let `npx tauri` run (the CLI ships as a
   precompiled npm binary — no Rust needed to use it for icon-gen, `info`,
   etc.). There is no frontend build script because there's nothing to build.
@@ -83,7 +82,7 @@ to tell them apart — which made "is the fix actually in the build I'm testing?
 unanswerable and cost two ambiguous debugging rounds.
 
 ```bash
-# 1. bump the three manifests to X.Y.Z first
+# 1. bump all four manifests to X.Y.Z first (check-frontend.py verifies)
 git commit -am "…"
 git tag vX.Y.Z
 git push origin main

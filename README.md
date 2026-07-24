@@ -115,10 +115,12 @@ straight at it; there's nothing for a bundler to do.
 > This never reproduces in a browser, where no nonce is injected.
 
 **Current scope, honestly stated:** the register is encrypted at rest and
-locked behind a passphrase, using browser-standard WebCrypto and IndexedDB
-inside the native shell. Rust-side filesystem commands — native vault
-read/write, wipe-on-exit, hardware key support — are the documented next step,
-not yet built.
+locked behind a passphrase, using browser-standard WebCrypto inside the native
+shell. As of v1.15.0 the sealed register is also written to a file the app
+controls, rather than only to storage the webview locates for itself — but
+that copy is a **mirror only**: it is written and can be verified, and nothing
+reads from it yet. Serving reads from it, then retiring IndexedDB, then
+wipe-on-exit and dialog-free vault I/O, are the next steps.
 
 ## Local development (optional, and not on a work machine)
 
