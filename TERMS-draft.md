@@ -1,11 +1,6 @@
 # Terms of Service & End-User Licence Agreement
 
-**DRAFT — not legal advice.** Written against the actual v1.20.0 codebase.
-Every technical claim below is checkable in `src/index.html`,
-`src-tauri/tauri.conf.json` and `SECURITY-OVERVIEW.md`. Have a lawyer review
-before taking money.
-
-Last updated: 24 July 2026 · Applies to: Watch Register v1.x
+Watch Register v1.x · Last updated 24 July 2026
 
 ---
 

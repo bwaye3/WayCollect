@@ -446,8 +446,7 @@
       <h2>Terms of Service &amp; End-User Licence Agreement</h2>
     </div>
     <div class="tos-body" id="tosBody" tabindex="0"><!--TERMS:START-->
-      <p><b>DRAFT — not legal advice.</b> Written against the actual v1.20.0 codebase. Every technical claim below is checkable in <code>src/index.html</code>, <code>src-tauri/tauri.conf.json</code> and <code>SECURITY-OVERVIEW.md</code>. Have a lawyer review before taking money.</p>
-      <p>Last updated: 24 July 2026 · Applies to: Watch Register v1.x</p>
+      <p>Watch Register v1.x · Last updated 24 July 2026</p>
       <div class="tos-h">1. What you are licensed</div>
       <p><b>Licensed, not sold.</b> Subject to these Terms you are granted a personal, non-exclusive, non-transferable licence to install and use this Application on machines you own or control.</p>
       <p><b>What the licence covers, and what is already free.</b> The source code of this Application is public and licensed under the PolyForm Noncommercial 1.0.0 licence: anyone may read, audit, build and use it for personal, charitable, educational or research purposes at no charge, and nothing in these Terms restricts that. What is licensed here is the *distributed build* — the compiled, signed, packaged Application and its updates. Commercial use of the software in any form requires a separate licence from the developer.</p>
@@ -997,7 +996,7 @@ const ui={q:"",cat:"",rot:"",disp:"",cover:"",status:"",stars:"",comp:"",sortKey
 
 /* ── Utils ── */
 const $=s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll(s));
-const APP_VERSION="1.25.0";
+const APP_VERSION="1.26.0";
 const uuid=()=>crypto.randomUUID?crypto.randomUUID():"id-"+Date.now()+"-"+Math.random().toString(16).slice(2);
 const esc=s=>(s==null?"":String(s)).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const num=v=>{if(typeof v==="number")return isFinite(v)?v:null;const n=parseFloat(String(v??"").replace(/[^0-9.\-]/g,""));return isFinite(n)?n:null;};
