@@ -1507,8 +1507,7 @@ function openForm(asset){editingId=asset?asset.id:null;$("#formTitle").textConte
      maker and model is required. Editing opens whatever already has content,
      so the same component reads as filling-in or as reviewing. */
   $$("#formGrid details.sec").forEach((d,i)=>{
-    const has=(d.querySelector(".sec-sum")||{}).textContent;
-    d.open = asset ? (i===0 || (has && has!=="\u2014")) : i===0;});
+    d.open = i===0;});   /* first section only, always — reviewing a full watch should not open everything */
   $("#menuScrim").classList.remove("on");$("#formScrim").classList.add("on");setTimeout(()=>$("#fld_maker")&&$("#fld_maker").focus(),40);}
 function collectForm(){const r={};FIELD_KEYS.forEach(k=>r[k]=getF(k));MONEY_KEYS.forEach(k=>{const n=num(r[k]);r[k]=n!=null?n:null;});r.warrantyYears=num(r.warrantyYears);r.stars=r.stars?+r.stars:null;r.grail=r.grail||"";r.complications=normComps(r.complications);r.insured=(r.insured==="Yes");r.photos=formPhotos.map(p=>({...p}));r.thumb=formThumb?{...formThumb}:null;r.documents=formDocs.map(d=>({...d}));r.serviceHistory=formServiceLog.map(s=>({...s}));
   if(r.serviceHistory.length){const newest=r.serviceHistory.slice().sort((a,b)=>(b.date||"").localeCompare(a.date||""))[0];if(newest.date)r.lastService=newest.date;if(newest.by)r.serviceBy=newest.by;}
