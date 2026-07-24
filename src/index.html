@@ -1939,7 +1939,11 @@ function wire(){
   $("#formSave").addEventListener("click",()=>saveForm(false));
   $("#formSaveNew").addEventListener("click",()=>saveForm(true));
   $("#parseBtn").addEventListener("click",applyParse);
-  $("#svcAddBtn").addEventListener("click",addServiceEntry);
+  /* Delegated: #svcAddBtn is built by openForm, not present at wire() time.
+     A direct listener here threw on boot in v1.23.0 -- $() returned null,
+     wire() died on that line, and init() never loaded the register or checked
+     the terms gate. Delegation does not depend on the element existing yet. */
+  document.addEventListener("click",e=>{if(e.target.closest("#svcAddBtn"))addServiceEntry();});
   document.addEventListener("change",async e=>{if(e.target&&e.target.id==="thumbInput"){const f=(e.target.files||[])[0];
     if(f){try{formThumb=await readImage(f);}catch(err){toast("That image couldn't be read.",true);}renderCoverSlot();}
     e.target.value="";}});

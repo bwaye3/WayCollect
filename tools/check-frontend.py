@@ -146,6 +146,33 @@ def check_faq_in_sync():
         notes.append("in-app FAQ matches FAQ-draft.txt")
 
 
+def check_wire_targets():
+    """Every $("#id") that wire() attaches to at init must exist in the static
+    HTML. wire() runs before any dynamic markup is built, so a reference to an
+    element created later in openForm() returns null and throws -- which aborts
+    init() entirely: no data load, no terms gate, a blank app. Shipped once in
+    v1.23.0 (the svcAddBtn move) and invisible to a normal build."""
+    raw = INDEX.read_text(encoding="utf-8")
+    m = re.search(r"function wire\(\)\{", raw)
+    if not m:
+        return
+    i = m.end(); depth = 1; j = i
+    while j < len(raw) and depth:
+        if raw[j] == "{": depth += 1
+        elif raw[j] == "}": depth -= 1
+        j += 1
+    wire = raw[i:j]
+    static = raw[: raw.index("<script")]
+    ids = set(re.findall(r'\$\("#([\w-]+)"\)', wire))
+    missing = sorted(i for i in ids if f'id="{i}"' not in static)
+    if missing:
+        fail(f"wire() references {missing}, which do not exist in the static HTML "
+             f"-- these throw at boot and abort init() (blank app, no data). "
+             f"Attach them where they are built, or delegate from document.")
+    else:
+        notes.append(f"all {len(ids)} wire() targets exist in static HTML")
+
+
 def check_terms_in_sync():
     """The text a user legally accepts must be the text in the repo."""
     src = ROOT / "TERMS-draft.md"
@@ -176,6 +203,7 @@ def main():
     check_versions()
     check_csp()
     check_faq_in_sync()
+    check_wire_targets()
     check_terms_in_sync()
 
     for n in notes:
