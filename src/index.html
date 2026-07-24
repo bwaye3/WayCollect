@@ -1000,7 +1000,16 @@ async function readStorePkg(){
   const fromDb=await metaGet(STORE_KEY);
   const fromFile=await fileReadPkg();
   if(!fromDb&&!fromFile){storeSource="none";return null;}
-  if(!fromFile){storeSource=!isNative()?"database":(fileReadErr?("database — the file "+fileReadErr):"database (no file yet)");return fromDb;}
+  if(!fromFile){
+    /* A stale file is repaired below, so an absent one must be too -- otherwise
+       losing the file silently drops back to a single copy until the next save
+       happens to recreate it, which is the exact single-point-of-failure this
+       storage layer exists to remove. Found by moving the file aside and
+       reopening: the fallback worked, the recovery did not. */
+    if(fromDb&&isNative()){mirrorWrite(fromDb);
+      storeSource=fileReadErr?("database — the file "+fileReadErr+", rebuilding"):"database — file missing, rebuilding";}
+    else storeSource=!isNative()?"database":(fileReadErr?("database — the file "+fileReadErr):"database (no file yet)");
+    return fromDb;}
   if(!fromDb){storeSource="file (database empty)";
     try{await metaPutStrict(STORE_KEY,fromFile);}catch(e){}
     return fromFile;}
