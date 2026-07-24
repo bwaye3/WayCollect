@@ -5,7 +5,7 @@ Written for external review. Every claim below is checkable against
 line references included where useful. **Reviewers: please attack the
 "Known limitations" section first; it is where the real weaknesses are.**
 
-Version described: **v1.17.0**. macOS and Windows desktop application built
+Version described: **v1.26.0**. macOS and Windows desktop application built
 with Tauri v2 (Rust shell + system WebView).
 
 ---

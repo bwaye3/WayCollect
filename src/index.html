@@ -410,6 +410,9 @@
   .lock-alt{font-size:11px}
   .lock-terms{display:inline-block;margin-top:14px;font-size:10.5px;color:var(--muted-2);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
   .lock-terms:hover{color:var(--muted)}
+  .zk-note{font-size:11.5px;line-height:1.6;color:var(--prose);background:var(--alert-wash);border:1px solid var(--alert);border-radius:4px;padding:10px 12px;margin:12px 0 4px;text-align:left}
+  .zk-note b{color:var(--alert)}
+  .zk-hint{font-size:10.5px;color:var(--muted-2);margin:6px 0 0}
   .lock-err{color:var(--alert);font-size:11.5px;min-height:17px;margin-top:9px}
   .tos-screen{position:fixed;inset:0;z-index:250;background:var(--ink);display:none;flex-direction:column;padding:24px}
   .tos-screen.on{display:flex}
@@ -497,6 +500,7 @@
 
     <div class="lock-step on" id="stepUnlock">
       <p class="lock-msg" id="unlockMsg">Enter your passphrase to unlock this register.</p>
+      <p class="zk-hint">Zero-knowledge: no one, including the developer, can recover a lost passphrase.</p>
       <input type="password" class="pw-input" id="lockPass" placeholder="Passphrase" autocomplete="off">
       <div class="lock-err" id="unlockErr"></div>
       <div class="lock-actions">
@@ -521,6 +525,7 @@
       <input type="password" class="pw-input" id="newPass" placeholder="Passphrase" autocomplete="off">
       <input type="password" class="pw-input" id="newPass2" placeholder="Confirm passphrase" autocomplete="off">
       <div class="lock-err" id="createErr"></div>
+      <p class="zk-note"><b>Zero-knowledge encryption.</b> Watch Register stores your collection encrypted on this machine only. If you lose <b>both</b> your passphrase and your recovery key, your data cannot be recovered by anyone &mdash; including the developer. There is no reset.</p>
       <div class="lock-actions"><button class="btn primary" id="createGo">Continue</button></div>
     </div>
 
@@ -996,7 +1001,8 @@ const ui={q:"",cat:"",rot:"",disp:"",cover:"",status:"",stars:"",comp:"",sortKey
 
 /* ── Utils ── */
 const $=s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll(s));
-const APP_VERSION="1.26.0";
+const APP_VERSION="1.27.0";
+const REPORT_DISCLAIMER='<div class="pd-note"><b>Disclaimer.</b> This report is generated solely for personal record-keeping and organization. It does not constitute an official, certified, legal, or financial appraisal. Watch Register and its developer assume no liability for insurance valuation disputes, claims, or coverage determinations. Confirm valuations with a qualified appraiser and coverage with your insurer.</div>';
 const uuid=()=>crypto.randomUUID?crypto.randomUUID():"id-"+Date.now()+"-"+Math.random().toString(16).slice(2);
 const esc=s=>(s==null?"":String(s)).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const num=v=>{if(typeof v==="number")return isFinite(v)?v:null;const n=parseFloat(String(v??"").replace(/[^0-9.\-]/g,""));return isFinite(n)?n:null;};
@@ -1736,7 +1742,7 @@ function deliverDoc(title,slug,inner,wide){
     '\n.print-doc{display:block!important}\n'+
     '@media screen{body{max-width:'+(wide?'1500px':'1100px')+';margin:0 auto}}\n'+
     (wide?'.pd-table{font-size:9px}.pd-table th,.pd-table td{padding:5px 5px}\n':'')+
-    '</style></head>\n<body><div class="print-doc">'+inner+'</div></body></html>';
+    '</style></head>\n<body><div class="print-doc">'+inner+REPORT_DISCLAIMER+'</div></body></html>';
   const fname=slug+"-"+today()+".html";
   download(fname,html,"text/html");
   /* Windows builds ship from the same file, so the shortcut and the PDF
