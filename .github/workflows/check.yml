@@ -35,4 +35,14 @@ jobs:
           workspaces: "./src-tauri -> target"
       - name: cargo check
         working-directory: src-tauri
-        run: cargo check --locked --all-targets
+        run: cargo check --all-targets
+
+      # Cargo.lock is not in the repo yet, so dependencies resolve fresh on
+      # every build -- a patch release of any transitive dep lands silently.
+      # Publish the resolved lockfile so it can be committed and pinned.
+      - name: Publish resolved Cargo.lock
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-lock
+          path: src-tauri/Cargo.lock
+          if-no-files-found: error
