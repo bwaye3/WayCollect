@@ -583,6 +583,8 @@
     <div class="eyebrow u-mt10 u-mbn2">Security</div>
     <label class="dialog-text u-f11" for="idleSel">Lock automatically after</label>
     <select id="idleSel"><option value="5">5 minutes idle</option><option value="15">15 minutes idle</option><option value="30">30 minutes idle</option><option value="60">60 minutes idle</option><option value="0">Never (not recommended)</option></select>
+    <div class="dialog-text u-f11" id="mirrorLine">Native file storage — checking…</div>
+    <button class="btn" id="mVerifyMirror"><svg viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg> Verify native file copy</button>
     <button class="btn" id="mChangePass"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="1.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg> Change passphrase</button>
     <div class="eyebrow u-mt10 u-mbn2">Danger zone</div>
     <button class="btn danger ghost" id="mWipe"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg> Erase encrypted register</button>
@@ -948,6 +950,44 @@ const cryptoAvailable=()=>!!(window.crypto&&window.crypto.subtle);
    Shamir share can become a third wrap later without touching stored data.
    The MK lives in memory only; locking drops it. */
 const STORE_KEY="store";
+/* ── Native file mirror (stage 1) ──────────────────────────────────────
+   IndexedDB is still the source of truth. WebKit decides where that lives by
+   hashing an origin salt it controls, and when that salt regenerated the whole
+   register was orphaned with no error. These calls copy the sealed blob to a
+   path we choose so the data survives that. Reads flip over only once the
+   mirror is confirmed working — until then a failure here costs an unused
+   file, not a collection. Everything crossing this boundary is ciphertext. */
+const nativeAPI=()=>{const t=window.__TAURI__;return t&&t.core&&typeof t.core.invoke==="function"?t.core:null;};
+const isNative=()=>!!nativeAPI();
+let mirrorState={ok:null,bytes:0,at:0,err:null};
+async function mirrorWrite(pkg){
+  const api=nativeAPI();if(!api)return false;
+  try{
+    const bytes=await api.invoke("store_write",{data:JSON.stringify(pkg)});
+    mirrorState={ok:true,bytes:Number(bytes)||0,at:Date.now(),err:null};
+    return true;
+  }catch(e){
+    mirrorState={ok:false,bytes:0,at:Date.now(),err:String(e&&e.message||e)};
+    return false;
+  }
+}
+async function mirrorInfo(){
+  const api=nativeAPI();if(!api)return null;
+  try{return await api.invoke("store_info");}catch(e){return{error:String(e&&e.message||e)};}
+}
+/* Read the mirror back and compare it byte-for-byte with what IndexedDB holds.
+   This is the evidence that the file can be trusted before anything reads from
+   it -- "a file appeared" is not the same as "the file is correct". */
+async function mirrorVerify(){
+  const api=nativeAPI();if(!api)return{ok:false,reason:"not running in the desktop app"};
+  try{
+    const onDisk=await api.invoke("store_read");
+    if(onDisk==null)return{ok:false,reason:"no file written yet"};
+    const expect=JSON.stringify(await metaGet(STORE_KEY));
+    if(onDisk===expect)return{ok:true,bytes:onDisk.length};
+    return{ok:false,reason:`file differs from the database (${onDisk.length} vs ${expect.length} bytes)`};
+  }catch(e){return{ok:false,reason:String(e&&e.message||e)};}
+}
 let MK=null;          /* unwrapped master key — memory only, never persisted */
 let STORE_PKG=null;   /* the sealed package; .data is replaced on each save */
 
@@ -999,6 +1039,7 @@ async function saveStore(){
   STORE_PKG.data=await encWith(MK,{assets:ASSETS,owner:OWNER});
   try{await metaPutStrict(STORE_KEY,STORE_PKG);}
   catch(e){toast("Could not save to disk — your changes are only in memory. Export a vault now.",true);throw e;}
+  mirrorWrite(STORE_PKG);   /* stage 1: advisory copy, never blocks or fails the save */
 }
 async function unlockStore(pkg,secret,which){
   const mk=await unwrapMK(pkg.wraps[which],secret);
@@ -1531,6 +1572,14 @@ function applyMode(fromInit){$$("#modeSeg button").forEach(b=>b.classList.toggle
 function clearFilters(){ui.q="";ui.cat="";ui.rot="";ui.disp="";ui.cover="";ui.status="";ui.stars="";$("#search").value="";["fCat","fRot","fDisp","fCover","fStatus","fStars"].forEach(id=>$("#"+id).value="");renderTable();}
 window.clearFilters=clearFilters;window.openForm=openForm;
 function deleteAsset(id){const a=ASSETS.find(x=>x.id===id);if(!a)return;confirmDlg("Remove this watch?",`“${[a.maker,a.model].filter(Boolean).join(" ")||"Untitled"}” will be removed. Export a backup first if unsure.`,async()=>{await removeAsset(id);closeDrawer();renderReadout();renderTable();updateDbNote();toast("Removed.");});}
+async function refreshMirrorLine(){
+  const el=$("#mirrorLine");if(!el)return;
+  if(!isNative()){el.textContent="Native file storage — desktop app only (not active in a browser).";return;}
+  const i=await mirrorInfo();
+  if(!i||i.error){el.textContent="Native file storage — unavailable"+(i&&i.error?" ("+i.error+")":"")+".";return;}
+  if(!i.exists){el.textContent="Native file storage — no copy written yet. Save any change to create one.";return;}
+  el.textContent="Native file copy — "+fmtSize(i.bytes)+", written "+new Date(i.modified_ms).toLocaleString()+". Not in use yet.";
+}
 function updateDbNote(){$("#dbNote").textContent=MODE==="vault"?(ASSETS.length+" in memory · no local trace"):(ASSETS.length+" record"+(ASSETS.length!==1?"s":"")+" · local DB");}
 
 /* ── Wiring ── */
@@ -1559,6 +1608,18 @@ function wire(){
     if(!migBackedUp){$("#migErr").textContent="Export the backup first — this step cannot be undone.";return;}
     beginCreate("Choose a passphrase. Your existing records will be encrypted with it, and the unencrypted copy erased.");});
   $("#btnLock").addEventListener("click",()=>{if(MK)lockNow(false);else toast("Nothing to lock — no encrypted register open.",true);});
+  $("#btnMenu").addEventListener("click",()=>{refreshMirrorLine();});
+  $("#mVerifyMirror").addEventListener("click",async()=>{
+    if(!isNative()){noticeDlg("Not the desktop app","Native file storage only exists in the installed application. In a browser the register lives in browser storage only.");return;}
+    const r=await mirrorVerify();
+    const info=await mirrorInfo();
+    noticeDlg(r.ok?"Native copy verified":"Native copy not verified",
+      r.ok?("The file on disk matches your register exactly, byte for byte.\n\n"+
+            (info&&info.path?info.path+"\n":"")+fmtSize(r.bytes)+"\n\n"+
+            "This copy is not in use yet — your register still loads from browser storage. It is being written so it can be verified before anything depends on it.")
+          :("Reason: "+r.reason+"\n\n"+(info&&info.path?"Expected at:\n"+info.path+"\n\n":"")+
+            "Nothing is wrong with your collection — it is stored as it always has been. This only affects the additional file copy."));
+    refreshMirrorLine();});
   $("#mChangePass").addEventListener("click",()=>{$("#menuScrim").classList.remove("on");
     if(!MK){toast("Unlock first.",true);return;}
     askPass({confirm:true,title:"Change passphrase",msg:"Choose a new passphrase. Your data is not re-encrypted — only the key wrapping changes, so your recovery key still works.",
