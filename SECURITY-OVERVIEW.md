@@ -5,7 +5,7 @@ Written for external review. Every claim below is checkable against
 line references included where useful. **Reviewers: please attack the
 "Known limitations" section first; it is where the real weaknesses are.**
 
-Version described: **v1.15.0**. macOS and Windows desktop application built
+Version described: **v1.17.0**. macOS and Windows desktop application built
 with Tauri v2 (Rust shell + system WebView).
 
 ---
@@ -136,14 +136,16 @@ serialised, sealed, and stored as a single ciphertext blob. A canary test
 confirmed that maker, model, serial numbers, owner name and values do not
 appear anywhere in the raw on-disk bytes.
 
-**Two locations, deliberately.** As of v1.15.0 the sealed blob is written both
-to IndexedDB and to a file at a path the application controls
+**Two locations, deliberately.** The sealed blob is written both to IndexedDB
+and to a file at a path the application controls
 (`<app data dir>/register.vault`), via Rust commands in `src-tauri/src/lib.rs`.
 
-The file is currently a **mirror only** — IndexedDB remains the source of truth
-and nothing reads from the file yet. It exists so it can be verified before
-anything depends on it; the app provides a "Verify native file copy" action
-that reads it back and compares byte-for-byte against the database.
+**As of v1.16.0 reads are served from the file.** IndexedDB is retained as a
+second copy, and the two reconcile rather than being merely ranked: each save
+stamps a monotonic revision outside the ciphertext, the higher revision wins on
+load, and the staler copy is repaired immediately. A failed file write cannot
+produce a stale read, and a wiped database is restored from the file. A corrupt
+or unreadable file falls back to the database and reports why.
 
 *Why:* WebKit derives its storage location by hashing an origin salt it
 controls. When that salt regenerated on a test machine, the register was
@@ -240,7 +242,12 @@ Listed deliberately. A reviewer should start here.
 7. **Recovery key is displayed on screen once.** If the machine is already
    compromised at setup time, it is captured. There is no way to avoid this
    without out-of-band delivery.
-8. **Migration exposure (historical).** Databases created before at-rest
+8. **Untrusted file input is sanitised, not sandboxed.** Imported records have
+   identifiers regenerated and attachment payloads allowlisted, and everything
+   reaching an attribute is escaped. This is correct as of v1.17.0, but it is
+   a discipline rather than a structural guarantee — a future unescaped
+   interpolation would be reachable again because the IPC bridge is exposed.
+9. **Migration exposure (historical).** Databases created before at-rest
    encryption retain plaintext in freed SQLite pages until overwritten. New
    installs are unaffected; the fix for an affected machine is a clean rebuild
    from an encrypted vault export.

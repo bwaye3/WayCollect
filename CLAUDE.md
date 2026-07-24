@@ -17,19 +17,36 @@ data lives in it** — see "Never do this" below.
   build step for the frontend without discussing it first. `tauri.conf.json`
   → `frontendDist` points straight at the `src/` folder; there is nothing
   for a bundler to do.
-- `src-tauri/` holds the Rust shell. As of v1.15.0 it defines three
-  commands — `store_write`, `store_read`, `store_info` — which write the
-  already-sealed register to a path the app chooses rather than one WebKit
-  derives. **Stage 1: this is a mirror only.** IndexedDB remains the source
-  of truth and nothing reads from the file yet, so a bug there costs an
-  unused file rather than a collection. Only ciphertext crosses the
-  boundary; the passphrase and master key never leave the webview.
-  `app.withGlobalTauri` is enabled so the page can invoke those commands —
-  acceptable specifically because `connect-src 'none'` means no remote
-  script can ever reach the bridge. Encryption is unchanged and stays in
-  the webview: browser-standard WebCrypto, AES-256-GCM, envelope design.
-  Still to come: reads served from the file (stage 2), then retiring
-  IndexedDB (stage 3), then wipe-on-exit and dialog-free vault I/O.
+- `src-tauri/` holds the Rust shell. It defines three commands —
+  `store_write`, `store_read`, `store_info` — which write the already-sealed
+  register to a path the app chooses rather than one WebKit derives.
+  **As of v1.16.0 reads come from that file** (stage 2). IndexedDB is kept
+  as a second copy, and the two reconcile on every load: each save stamps a
+  monotonic `rev` outside the ciphertext, the higher `rev` wins, and the
+  staler copy is repaired immediately. So neither a failed file write nor a
+  wiped database costs work. Ties go to the file, except when neither copy
+  is stamped (the one-time upgrade), where the database wins.
+  Only ciphertext crosses the boundary; the passphrase and master key never
+  leave the webview. `app.withGlobalTauri` is enabled so the page can invoke
+  those commands. Encryption is unchanged and stays in the webview:
+  browser-standard WebCrypto, AES-256-GCM, envelope design.
+  Still to come: retiring IndexedDB entirely (stage 3), Argon2id key
+  derivation in Rust, then wipe-on-exit and dialog-free vault I/O.
+
+## Never trust data that arrives in a file
+
+Imported records used to keep their own `id`, which reached a `data-id`
+attribute unescaped — a crafted backup file could break out of the attribute
+and install a working event handler, and `withGlobalTauri` makes that
+reachable to native commands. Found by external review, fixed in v1.17.0.
+
+`sanitizeAsset()` now regenerates every identifier on import rather than
+validating it, and attachment payloads are filtered to an allowlist of
+`data:` types (`OK_DATA`) — `javascript:`, `data:text/html` and SVG are
+rejected. Anything interpolated into an attribute goes through `esc()`, and
+image sources go through `picSrc()`. Keep both when adding fields: the CSP
+nonce probably neuters injected handlers in the packaged app, but that is
+incidental protection and does not apply to the file opened in a browser.
 - `package.json` exists **only** to let `npx tauri` run (the CLI ships as a
   precompiled npm binary — no Rust needed to use it for icon-gen, `info`,
   etc.). There is no frontend build script because there's nothing to build.
