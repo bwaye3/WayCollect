@@ -33,16 +33,9 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: "./src-tauri -> target"
+      # --locked fails the run if Cargo.lock would need changing, so a
+      # dependency cannot drift into a build without an explicit, reviewable
+      # commit to the lockfile.
       - name: cargo check
         working-directory: src-tauri
-        run: cargo check --all-targets
-
-      # Cargo.lock is not in the repo yet, so dependencies resolve fresh on
-      # every build -- a patch release of any transitive dep lands silently.
-      # Publish the resolved lockfile so it can be committed and pinned.
-      - name: Publish resolved Cargo.lock
-        uses: actions/upload-artifact@v4
-        with:
-          name: cargo-lock
-          path: src-tauri/Cargo.lock
-          if-no-files-found: error
+        run: cargo check --locked --all-targets
