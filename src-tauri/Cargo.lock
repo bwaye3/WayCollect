@@ -3738,7 +3738,7 @@ dependencies = [
 
 [[package]]
 name = "watch-register"
-version = "1.24.0"
+version = "1.25.0"
 dependencies = [
  "serde",
  "serde_json",

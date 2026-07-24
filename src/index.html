@@ -408,6 +408,8 @@
   .lock-card .pw-input{width:100%;text-align:center;margin-bottom:8px}
   .lock-actions{display:flex;flex-direction:column;gap:8px;margin-top:12px}
   .lock-alt{font-size:11px}
+  .lock-terms{display:inline-block;margin-top:14px;font-size:10.5px;color:var(--muted-2);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+  .lock-terms:hover{color:var(--muted)}
   .lock-err{color:var(--alert);font-size:11.5px;min-height:17px;margin-top:9px}
   .tos-screen{position:fixed;inset:0;z-index:250;background:var(--ink);display:none;flex-direction:column;padding:24px}
   .tos-screen.on{display:flex}
@@ -501,6 +503,7 @@
       <div class="lock-actions">
         <button class="btn primary" id="unlockGo">Unlock</button>
         <button class="btn ghost lock-alt" id="useRecovery">Use recovery key instead</button>
+        <a class="lock-terms" id="lockTos">View terms &amp; conditions</a>
       </div>
     </div>
 
@@ -994,7 +997,7 @@ const ui={q:"",cat:"",rot:"",disp:"",cover:"",status:"",stars:"",comp:"",sortKey
 
 /* ── Utils ── */
 const $=s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll(s));
-const APP_VERSION="1.24.0";
+const APP_VERSION="1.25.0";
 const uuid=()=>crypto.randomUUID?crypto.randomUUID():"id-"+Date.now()+"-"+Math.random().toString(16).slice(2);
 const esc=s=>(s==null?"":String(s)).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const num=v=>{if(typeof v==="number")return isFinite(v)?v:null;const n=parseFloat(String(v??"").replace(/[^0-9.\-]/g,""));return isFinite(n)?n:null;};
@@ -1990,6 +1993,7 @@ function wire(){
   $("#lnkSucc").addEventListener("click",()=>$("#succScrim").classList.add("on"));
   $("#lnkFaq").addEventListener("click",()=>$("#faqScrim").classList.add("on"));
   $("#lnkTos").addEventListener("click",()=>showTerms(null));
+  $("#lockTos").addEventListener("click",()=>showTerms(null));
   $("#tosBody").addEventListener("scroll",()=>{if(!tosReview)tosCheckScroll();});
   $("#tosYes").addEventListener("click",()=>{
     if(tosReview){$("#tosScreen").classList.remove("on");return;}
